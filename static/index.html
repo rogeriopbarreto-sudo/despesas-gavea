@@ -132,9 +132,11 @@ body {
 /* ── Expense cards ── */
 .exp-card {
   background: var(--card); border-radius: 14px; border: 1px solid var(--line);
-  margin-bottom: 10px; overflow: hidden; display: flex;
+  margin-bottom: 10px; overflow: hidden; display: flex; flex-direction: column;
   box-shadow: 0 2px 8px rgba(42,92,30,.06);
 }
+.exp-card.expandable { cursor: pointer; }
+.exp-main { display: flex; }
 .exp-thumb-col { width: 68px; flex-shrink: 0; background: var(--green-soft); display: grid; place-items: center; }
 .exp-thumb-col img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
 .exp-thumb-col .no-thumb { font-size: 26px; }
@@ -145,8 +147,27 @@ body {
 .exp-amt { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .exp-pill { background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 600; border-radius: 20px; padding: 2px 8px; white-space: nowrap; }
 .exp-pill.orange { background: var(--orange-soft); color: var(--orange); }
+.exp-pill.reimb { background: #e8eef9; color: #2b54c6; }
+.exp-arrow { font-size: 16px; color: var(--line); transition: transform .2s; line-height: 1; user-select: none; }
+.exp-arrow.open { transform: rotate(90deg); color: var(--ink-soft); }
 .del-btn { background: none; border: 0; color: var(--ink-soft); cursor: pointer; font-size: 16px; padding: 2px; line-height: 1; }
 .del-btn:hover { color: var(--red); }
+/* ── Items expandable section ── */
+.exp-items { display: none; border-top: 1px dashed var(--line); padding: 8px 12px 10px 80px; }
+.exp-items.open { display: block; }
+.exp-item-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 0; font-size: 13px; }
+.exp-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.exp-item-detail { color: var(--ink-soft); font-size: 11px; white-space: nowrap; }
+.exp-item-price { font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; white-space: nowrap; }
+/* ── Toggle switch ── */
+.toggle-wrap { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 2px; }
+.toggle-lbl { font-size: 14px; color: var(--ink); }
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.t-slider { position: absolute; cursor: pointer; inset: 0; background: var(--line); border-radius: 24px; transition: .2s; }
+.t-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+input:checked + .t-slider { background: var(--green); }
+input:checked + .t-slider:before { transform: translateX(20px); }
 
 /* ── Total geral — discreto no final ── */
 .total-footer { text-align: center; padding: 16px 0 4px; }
@@ -431,6 +452,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
         <button type="button" class="mbtn" data-method="Pix"><span class="mic">📱</span>Pix</button>
       </div>
 
+      <div class="toggle-wrap">
+        <span class="toggle-lbl">Solicitar reembolso</span>
+        <label class="toggle">
+          <input type="checkbox" id="r-reimbursable">
+          <span class="t-slider"></span>
+        </label>
+      </div>
+
       <div class="items-head">
         <span class="items-lbl">Itens (para comparar preços)</span>
         <button type="button" class="add-item-btn" id="add-item">+ adicionar</button>
@@ -535,6 +564,7 @@ function resetUpload() {
   $("preview-area").style.display = "none";
   $("review-area").style.display = "none";
   $("err-box").innerHTML = "";
+  $("r-reimbursable").checked = false;
 }
 
 // ── Sheet ─────────────────────────────────────────────────────────────────
@@ -646,6 +676,7 @@ async function saveExpense() {
         description: $("r-desc").value.trim()||$("r-store").value.trim()||"Despesa",
         value, date: $("r-date").value||new Date().toISOString().slice(0,10),
         payment_method: selectedMethod,
+        reimbursable: $("r-reimbursable").checked,
         thumb_b64: currentImage ? currentImage.thumb : "",
         items: readItems(),
       }),
@@ -706,20 +737,37 @@ function renderExpenses() {
 
   list.innerHTML = shown.map(e => {
     const thumb = e.thumb_b64
-      ? `<img src="${esc(e.thumb_b64)}" onclick="showLB('${esc(e.id)}')" alt="">`
+      ? `<img src="${esc(e.thumb_b64)}" onclick="event.stopPropagation();showLB('${esc(e.id)}')" alt="">`
       : `<div class="no-thumb">🧾</div>`;
     const store = e.store ? `${esc(e.store)} · ` : "";
-    return `<div class="exp-card">
-      <div class="exp-thumb-col">${thumb}</div>
-      <div class="exp-body">
-        <div class="exp-store">${esc(e.description||e.store||"Despesa")}</div>
-        <div class="exp-meta">${store}${brDate(e.date)}</div>
+    const items = Array.isArray(e.items) ? e.items : [];
+    const hasItems = items.length > 0;
+    const isReimb = String(e.reimbursable).toLowerCase() === "true";
+    const itemsHtml = items.map(it => {
+      const detail = it.unit === "kg" ? `${fmtBRL(it.unit_price)}/kg` : `${fmtBRL(it.unit_price)}/un`;
+      const total = parseFloat(it.total_price)||parseFloat(it.unit_price)||0;
+      return `<div class="exp-item-row">
+        <span class="exp-item-name">${esc(it.name)}</span>
+        <span class="exp-item-detail">${detail}</span>
+        <span class="exp-item-price">${fmtBRL(total)}</span>
+      </div>`;
+    }).join("");
+    return `<div class="exp-card${hasItems?" expandable":""}"${hasItems?` onclick="toggleItems('${esc(e.id)}')"`:""}>
+      <div class="exp-main">
+        <div class="exp-thumb-col">${thumb}</div>
+        <div class="exp-body">
+          <div class="exp-store">${esc(e.description||e.store||"Despesa")}</div>
+          <div class="exp-meta">${store}${brDate(e.date)}</div>
+        </div>
+        <div class="exp-right">
+          <div class="exp-amt">${fmtBRL(e.value)}</div>
+          ${e.payment_method?`<div class="exp-pill ${pillClass(e.payment_method)}">${esc(e.payment_method)}</div>`:""}
+          ${isReimb?`<div class="exp-pill reimb">Reembolsar</div>`:""}
+          <button class="del-btn" onclick="event.stopPropagation();delExpense('${esc(e.id)}')" title="apagar">🗑</button>
+          ${hasItems?`<span class="exp-arrow" id="arr-${esc(e.id)}">›</span>`:""}
+        </div>
       </div>
-      <div class="exp-right">
-        <div class="exp-amt">${fmtBRL(e.value)}</div>
-        <div class="exp-pill ${pillClass(e.payment_method)}">${esc(e.payment_method||"")}</div>
-        <button class="del-btn" onclick="delExpense('${esc(e.id)}')" title="apagar">🗑</button>
-      </div>
+      ${hasItems?`<div class="exp-items" id="ei-${esc(e.id)}">${itemsHtml}</div>`:""}
     </div>`;
   }).join("");
 
@@ -768,6 +816,15 @@ async function renderPrices(query) {
       return `<div class="price-group"><div class="pname">${esc(g.name)} <span class="pu">/ ${esc(g.unit)}</span></div>${body}</div>`;
     }).join("");
   } catch { res.innerHTML='<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
+}
+
+// ── Toggle items expansion ────────────────────────────────────────────────
+function toggleItems(id) {
+  const items = document.getElementById("ei-" + id);
+  const arrow = document.getElementById("arr-" + id);
+  if (!items) return;
+  const open = items.classList.toggle("open");
+  if (arrow) arrow.classList.toggle("open", open);
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────

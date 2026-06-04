@@ -11,7 +11,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at"]
+EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable"]
 ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
 
 
@@ -56,6 +56,7 @@ class SheetsDB:
         self._expenses_ws = _ensure_worksheet(self._ss, "expenses", EXPENSES_HEADERS)
         self._items_ws = _ensure_worksheet(self._ss, "price_items", ITEMS_HEADERS)
         self._migrate_items_headers()
+        self._migrate_expenses_headers()
 
     def _migrate_items_headers(self):
         existing = self._items_ws.row_values(1)
@@ -63,6 +64,13 @@ class SheetsDB:
             new_col = len(existing) + 1
             self._items_ws.resize(rows=1000, cols=new_col)
             self._items_ws.update_cell(1, new_col, "total_price")
+
+    def _migrate_expenses_headers(self):
+        existing = self._expenses_ws.row_values(1)
+        if "reimbursable" not in existing:
+            new_col = len(existing) + 1
+            self._expenses_ws.resize(rows=1000, cols=new_col)
+            self._expenses_ws.update_cell(1, new_col, "reimbursable")
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -78,6 +86,7 @@ class SheetsDB:
             data.get("payment_method", ""),
             data.get("thumb_b64", ""),
             self._now(),
+            "true" if data.get("reimbursable") else "false",
         ]
         self._expenses_ws.append_row(row, value_input_option="RAW")
 
@@ -102,6 +111,20 @@ class SheetsDB:
         if month:
             records = [r for r in records if str(r.get("date", "")).startswith(month)]
         records.sort(key=lambda r: (str(r.get("date", "")), str(r.get("created_at", ""))), reverse=True)
+
+        all_items = self._items_ws.get_all_records()
+        items_map: dict[str, list] = {}
+        for it in all_items:
+            eid = str(it.get("expense_id", ""))
+            items_map.setdefault(eid, []).append({
+                "name": it.get("product_name", ""),
+                "unit_price": it.get("unit_price", 0),
+                "total_price": it.get("total_price", 0),
+                "unit": it.get("unit", "un"),
+            })
+        for r in records:
+            r["items"] = items_map.get(str(r.get("id", "")), [])
+
         return records
 
     def delete_expense(self, expense_id: str) -> bool:

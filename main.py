@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.4"
+APP_VERSION = "1.5"
 
 app = FastAPI(title="Despesas Gávea")
 
@@ -45,6 +45,7 @@ class ExpenseIn(BaseModel):
     value: float
     date: str
     payment_method: str = ""
+    reimbursable: bool = False
     thumb_b64: str = ""
     items: list[ItemIn] = []
 
