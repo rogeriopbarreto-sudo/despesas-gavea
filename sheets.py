@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import uuid
@@ -16,6 +17,7 @@ ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "stor
 CORRECTIONS_HEADERS = ["store", "raw_text", "corrected_name", "created_at"]
 
 
+@functools.lru_cache(maxsize=1)
 def _get_client() -> gspread.Client:
     creds_json = os.environ["GOOGLE_SHEETS_CREDENTIALS"]
     creds_dict = json.loads(creds_json)
@@ -57,8 +59,6 @@ class SheetsDB:
         self._expenses_ws = _ensure_worksheet(self._ss, "expenses", EXPENSES_HEADERS)
         self._items_ws = _ensure_worksheet(self._ss, "price_items", ITEMS_HEADERS)
         self._corrections_ws = _ensure_worksheet(self._ss, "corrections", CORRECTIONS_HEADERS)
-        self._migrate_items_headers()
-        self._migrate_expenses_headers()
 
     def _migrate_items_headers(self):
         existing = self._items_ws.row_values(1)
@@ -92,8 +92,8 @@ class SheetsDB:
         ]
         self._expenses_ws.append_row(row, value_input_option="RAW")
 
-        for item in data.get("items", []):
-            item_row = [
+        item_rows = [
+            [
                 str(uuid.uuid4()),
                 expense_id,
                 item.get("name", ""),
@@ -104,7 +104,10 @@ class SheetsDB:
                 self._now(),
                 str(item.get("total_price", 0)),
             ]
-            self._items_ws.append_row(item_row, value_input_option="RAW")
+            for item in data.get("items", [])
+        ]
+        if item_rows:
+            self._items_ws.append_rows(item_rows, value_input_option="RAW")
 
         return expense_id
 
@@ -157,19 +160,18 @@ class SheetsDB:
 
     def price_suggestions(self, limit: int = 10) -> list[str]:
         records = self._items_ws.get_all_records()
-        counts: dict[str, int] = {}
+        seen: dict[str, tuple[str, int]] = {}  # upper → (original_casing, count)
         for r in records:
             name = str(r.get("product_name", "")).strip()
-            if name:
-                counts[name.upper()] = counts.get(name.upper(), 0) + 1
-        sorted_names = sorted(counts, key=lambda k: counts[k], reverse=True)
-        # return original casing from first occurrence
-        seen: dict[str, str] = {}
-        for r in records:
-            name = str(r.get("product_name", "")).strip()
-            if name and name.upper() not in seen:
-                seen[name.upper()] = name
-        return [seen[k] for k in sorted_names[:limit] if k in seen]
+            if not name:
+                continue
+            key = name.upper()
+            if key in seen:
+                seen[key] = (seen[key][0], seen[key][1] + 1)
+            else:
+                seen[key] = (name, 1)
+        sorted_keys = sorted(seen, key=lambda k: seen[k][1], reverse=True)
+        return [seen[k][0] for k in sorted_keys[:limit]]
 
     def get_corrections(self, store: str) -> list[dict]:
         records = self._corrections_ws.get_all_records()

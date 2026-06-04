@@ -1,5 +1,6 @@
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import anthropic
@@ -11,9 +12,20 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.6"
+APP_VERSION = "1.7"
 
-app = FastAPI(title="Despesas Gávea")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from sheets import SheetsDB, _get_client
+    _get_client()  # warm up auth cache on startup
+    db = SheetsDB()
+    db._migrate_items_headers()
+    db._migrate_expenses_headers()
+    yield
+
+
+app = FastAPI(title="Despesas Gávea", lifespan=lifespan)
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -72,11 +84,11 @@ def version():
 @app.get("/api/health")
 def health():
     try:
-        db = get_db()
-        db._expenses_ws.row_values(1)
+        from sheets import _get_client
+        _get_client()  # reuses cached client; verifies credentials are loadable
         return {"status": "ok", "sheets": "connected"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Sheets error: {e}")
+        raise HTTPException(status_code=503, detail=f"Auth error: {e}")
 
 
 @app.post("/api/read-receipt")
