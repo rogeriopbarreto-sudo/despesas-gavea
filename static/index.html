@@ -782,7 +782,7 @@ function setErr(msg) { $("err-box").innerHTML=`<div class="err-box">${esc(msg)}<
 // ── Init ──────────────────────────────────────────────────────────────────
 loadExpenses();
 fetch("/api/version").then(r=>r.ok?r.json():null).then(d=>{
-  if (d?.version) $("version-badge").textContent = "v"+d.version;
+  if (d?.version) $("version-badge").textContent = d.version;
 }).catch(()=>{});
 </script>
 </body>
