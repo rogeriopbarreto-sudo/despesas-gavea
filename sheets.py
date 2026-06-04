@@ -21,7 +21,11 @@ def _get_client() -> gspread.Client:
     # Cloud env vars (Render, Heroku, etc.) may double-escape newlines in the
     # private key, leaving literal \n instead of actual newline characters.
     if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        pk = creds_dict["private_key"]
+        pk = pk.replace("\\n", "\n")   # double-escaped: \\n → \n
+        pk = pk.replace("\r\n", "\n")  # Windows CRLF → \n
+        pk = pk.replace("\r", "\n")    # old Mac CR → \n
+        creds_dict["private_key"] = pk
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     return gspread.authorize(creds)
 
