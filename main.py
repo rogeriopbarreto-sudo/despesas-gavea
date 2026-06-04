@@ -33,6 +33,7 @@ class ReadReceiptRequest(BaseModel):
 class ItemIn(BaseModel):
     name: str
     unit_price: float
+    total_price: float = 0
     unit: str = "un"
 
 
@@ -62,10 +63,10 @@ def read_receipt(req: ReadReceiptRequest):
         "Responda APENAS com um objeto JSON, sem texto antes/depois, sem markdown.\n"
         'Formato exato:\n{"store":"<nome curto e padronizado>","value":<total pago, ponto decimal>,'
         '"date":"<AAAA-MM-DD>","payment_method":"<ver regras>","items":[{"name":"<produto>",'
-        '"unit":"<un ou kg>","unit_price":<preço unitário>}]}\n\n'
+        '"unit":"<un ou kg>","unit_price":<VL.UNIT>,"total_price":<VL.TOTAL>}]}\n\n'
         "store: nome comercial + bairro/filial curto. Ex: 'Zona Sul - Leblon'.\n"
         "value: VALOR A PAGAR após descontos.\n"
-        "items: PREÇO UNITÁRIO (VL.UNIT), não total da linha. unit=kg se vendido por peso.\n"
+        "items: unit_price = PREÇO UNITÁRIO (VL.UNIT); total_price = TOTAL DA LINHA (VL.TOTAL). unit=kg se vendido por peso.\n"
         "payment_method — somente 3 casos, senão vazio:\n"
         "  crédito/credit → 'Cartão de Crédito'\n"
         "  vale/voucher/débito → 'Vale Alimentação'\n"

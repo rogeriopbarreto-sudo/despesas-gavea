@@ -12,7 +12,7 @@ SCOPES = [
 ]
 
 EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at"]
-ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at"]
+ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
 
 
 def _get_client() -> gspread.Client:
@@ -47,6 +47,12 @@ class SheetsDB:
         self._ss = _get_spreadsheet()
         self._expenses_ws = _ensure_worksheet(self._ss, "expenses", EXPENSES_HEADERS)
         self._items_ws = _ensure_worksheet(self._ss, "price_items", ITEMS_HEADERS)
+        self._migrate_items_headers()
+
+    def _migrate_items_headers(self):
+        existing = self._items_ws.row_values(1)
+        if "total_price" not in existing:
+            self._items_ws.update_cell(1, len(existing) + 1, "total_price")
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
@@ -75,6 +81,7 @@ class SheetsDB:
                 data.get("store", ""),
                 data.get("date", ""),
                 self._now(),
+                str(item.get("total_price", 0)),
             ]
             self._items_ws.append_row(item_row, value_input_option="RAW")
 
