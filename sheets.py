@@ -60,7 +60,9 @@ class SheetsDB:
     def _migrate_items_headers(self):
         existing = self._items_ws.row_values(1)
         if "total_price" not in existing:
-            self._items_ws.update_cell(1, len(existing) + 1, "total_price")
+            new_col = len(existing) + 1
+            self._items_ws.resize(rows=1000, cols=new_col)
+            self._items_ws.update_cell(1, new_col, "total_price")
 
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
