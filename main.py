@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.3"
+APP_VERSION = "1.4"
 
 app = FastAPI(title="Despesas Gávea")
 
@@ -64,25 +64,12 @@ def version():
 
 @app.get("/api/health")
 def health():
-    import json as _json
-    debug: dict = {}
     try:
-        raw = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
-        cd = _json.loads(raw)
-        pk = cd.get("private_key", "")
-        debug = {
-            "pk_len": len(pk),
-            "actual_newlines": pk.count("\n"),
-            "literal_backslash_n": pk.count("\\n"),
-            "crlf": pk.count("\r\n"),
-            "starts_begin": pk.lstrip()[:27] == "-----BEGIN PRIVATE KEY-----",
-            "has_end": "-----END PRIVATE KEY-----" in pk,
-        }
         db = get_db()
         db._expenses_ws.row_values(1)
         return {"status": "ok", "sheets": "connected"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail={"error": str(e), "key_debug": debug})
+        raise HTTPException(status_code=503, detail=f"Sheets error: {e}")
 
 
 @app.post("/api/read-receipt")
