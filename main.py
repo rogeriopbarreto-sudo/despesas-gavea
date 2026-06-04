@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.5"
+APP_VERSION = "1.6"
 
 app = FastAPI(title="Despesas Gávea")
 
@@ -48,6 +48,12 @@ class ExpenseIn(BaseModel):
     reimbursable: bool = False
     thumb_b64: str = ""
     items: list[ItemIn] = []
+
+
+class CorrectionIn(BaseModel):
+    store: str
+    raw_text: str
+    corrected_name: str
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -90,7 +96,9 @@ def read_receipt(req: ReadReceiptRequest):
         "  vale/voucher/débito → 'Vale Alimentação'\n"
         "  dinheiro/espécie/Pix → 'Pix'\n"
         "  qualquer outra coisa ou incerteza → ''\n"
-        f"Se não achar a data use '{today}'."
+        f"Se não achar a data use '{today}'.\n"
+        "ITENS DUVIDOSOS: Se o nome de um produto for muito abreviado, ilegível ou ambíguo, "
+        'inclua nos campos do item: "uncertain": true e "raw_text": "<texto exato do cupom>".'
     )
     if req.brief_desc:
         prompt += f' A pessoa descreveu como: "{req.brief_desc}".'
@@ -178,3 +186,21 @@ def list_prices(q: str | None = None):
 def price_suggestions():
     db = get_db()
     return db.price_suggestions()
+
+
+@app.get("/api/corrections")
+def list_corrections(store: str | None = None):
+    if not store:
+        return []
+    db = get_db()
+    return db.get_corrections(store)
+
+
+@app.post("/api/corrections", status_code=201)
+def save_corrections(corrections: list[CorrectionIn]):
+    if not corrections:
+        return {"ok": True}
+    db = get_db()
+    for c in corrections:
+        db.save_correction(c.store, c.raw_text, c.corrected_name)
+    return {"ok": True}

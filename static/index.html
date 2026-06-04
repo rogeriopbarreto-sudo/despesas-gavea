@@ -320,6 +320,17 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 .prow.best .pprice { color: var(--green); }
 .badge-best { background: var(--green); color: #fff; font-size: 10px; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
 
+/* ── Clarify area ── */
+.clarify-banner { background: #fef8e6; border: 1px solid #f5c842; border-radius: 12px; padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+.clarify-icon { font-size: 20px; line-height: 1.2; }
+.clarify-text { font-size: 13px; color: #7a5c00; line-height: 1.5; }
+.clarify-item { background: var(--card); border-radius: 12px; padding: 12px 14px; border: 1px solid var(--line); margin-bottom: 8px; }
+.clarify-raw { font-size: 11px; color: var(--ink-soft); font-family: monospace; background: var(--cream); padding: 3px 8px; border-radius: 4px; display: inline-block; margin-bottom: 8px; }
+.clarify-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); font-weight: 600; display: block; margin-bottom: 6px; }
+.learned-row { background: var(--green-soft); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(42,92,30,.15); margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.lr-name { flex: 1; font-size: 13px; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.learned-pill { background: var(--green); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+
 /* ── Lightbox ── */
 .lb { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 70; display: none; place-items: center; padding: 20px; }
 .lb.on { display: grid; }
@@ -422,6 +433,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 
   <div id="err-box"></div>
 
+  <div id="clarify-area" style="display:none">
+    <div class="clarify-banner" id="clarify-banner"></div>
+    <div id="clarify-items"></div>
+    <div id="learned-items"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button id="clarify-skip" class="btn btn-ghost">Pular</button>
+      <button id="clarify-confirm" class="btn btn-green">Confirmar →</button>
+    </div>
+  </div>
+
   <div id="review-area" style="display:none">
     <div class="review-box">
       <div class="review-tag">✓ Confira e ajuste se precisar</div>
@@ -487,6 +508,8 @@ let expenses = [];
 let selectedMethod = "";
 let currentImage = null;
 const METHODS = ["Cartão de Crédito", "Vale Alimentação", "Pix"];
+let currentScanData = null;
+let autoResolved = [];
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const fmtBRL = n => "R$ " + Number(n||0).toLocaleString("pt-BR", {minimumFractionDigits:2,maximumFractionDigits:2});
@@ -559,9 +582,12 @@ function scaleCanvas(img, maxW, quality) {
 $("clear-btn").addEventListener("click", resetUpload);
 function resetUpload() {
   currentImage = null;
+  currentScanData = null;
+  autoResolved = [];
   $("camera-input").value = "";
   $("brief-desc").value = "";
   $("preview-area").style.display = "none";
+  $("clarify-area").style.display = "none";
   $("review-area").style.display = "none";
   $("err-box").innerHTML = "";
   $("r-reimbursable").checked = false;
@@ -597,7 +623,15 @@ async function readReceipt() {
       }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    fillReview(await res.json());
+    const data = await res.json();
+    currentScanData = data;
+    const uncertain = (data.items || []).filter(it => it.uncertain);
+    if (uncertain.length > 0) {
+      const existing = data.store ? await fetchCorrections(data.store) : [];
+      showClarifyArea(data, uncertain, existing);
+    } else {
+      fillReview(data);
+    }
   } catch {
     setErr("Não consegui ler a nota automaticamente. Preencha os campos manualmente.");
     fillReview({});
@@ -617,6 +651,103 @@ function fillReview(data) {
   $("review-area").style.display = "block";
   setTimeout(() => $("review-area").scrollIntoView({behavior:"smooth",block:"start"}), 100);
 }
+
+// ── Clarify ────────────────────────────────────────────────────────────────
+async function fetchCorrections(store) {
+  try {
+    const res = await fetch(`/api/corrections?store=${encodeURIComponent(store)}`);
+    return res.ok ? await res.json() : [];
+  } catch { return []; }
+}
+
+function applyCorrectionsToData(data, corrections) {
+  const map = {};
+  corrections.forEach(c => { map[(c.raw_text||"").toUpperCase()] = c.corrected_name; });
+  const items = (data.items || []).map(it => {
+    if (it.uncertain) {
+      const key = (it.raw_text || it.name || "").toUpperCase();
+      if (map[key]) return { ...it, name: map[key], uncertain: false };
+    }
+    return it;
+  });
+  return { ...data, items };
+}
+
+function showClarifyArea(data, uncertain, existing) {
+  const knownMap = {};
+  existing.forEach(c => { knownMap[(c.raw_text||"").toUpperCase()] = c.corrected_name; });
+
+  const stillUncertain = [];
+  autoResolved = [];
+  uncertain.forEach(it => {
+    const key = (it.raw_text || it.name || "").toUpperCase();
+    if (knownMap[key]) {
+      autoResolved.push({ raw_text: it.raw_text || it.name, corrected: knownMap[key] });
+    } else {
+      stillUncertain.push(it);
+    }
+  });
+
+  if (stillUncertain.length === 0) {
+    fillReview(applyCorrectionsToData(data, autoResolved.map(r => ({ raw_text: r.raw_text, corrected_name: r.corrected }))));
+    return;
+  }
+
+  const n = stillUncertain.length;
+  $("clarify-banner").innerHTML =
+    `<span class="clarify-icon">⚠️</span><div class="clarify-text"><strong>Não li ${n} item${n>1?"ns":""} com clareza.</strong><br>` +
+    `Texto original do cupom abaixo. Me ajude a identificar:</div>`;
+
+  const box = $("clarify-items"); box.innerHTML = "";
+  stillUncertain.forEach(it => {
+    const raw = it.raw_text || it.name || "?";
+    const el = document.createElement("div"); el.className = "clarify-item";
+    el.innerHTML =
+      `<span class="clarify-raw">${esc(raw)}</span>` +
+      `<span class="clarify-lbl">Nome correto do produto</span>` +
+      `<input type="text" class="clarify-input" data-raw="${esc(raw)}" placeholder="Ex: Arroz integral 1kg">`;
+    box.appendChild(el);
+  });
+
+  const lb = $("learned-items"); lb.innerHTML = "";
+  autoResolved.forEach(r => {
+    const el = document.createElement("div"); el.className = "learned-row";
+    el.innerHTML = `<span class="lr-name">${esc(r.corrected)}</span><span class="learned-pill">✓ lembrado</span>`;
+    lb.appendChild(el);
+  });
+
+  $("preview-area").style.display = "none";
+  $("clarify-area").style.display = "block";
+}
+
+$("clarify-skip").addEventListener("click", () => {
+  $("clarify-area").style.display = "none";
+  fillReview(currentScanData);
+});
+
+$("clarify-confirm").addEventListener("click", async () => {
+  const inputs = document.querySelectorAll(".clarify-input");
+  const store = currentScanData?.store || "";
+  const newCorr = [];
+  inputs.forEach(inp => {
+    const corrected = inp.value.trim();
+    if (corrected) newCorr.push({ store, raw_text: inp.dataset.raw, corrected_name: corrected });
+  });
+  if (newCorr.length > 0) {
+    try {
+      await fetch("/api/corrections", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(newCorr),
+      });
+    } catch {}
+  }
+  const allCorr = [
+    ...newCorr,
+    ...autoResolved.map(r => ({ raw_text: r.raw_text, corrected_name: r.corrected })),
+  ];
+  $("clarify-area").style.display = "none";
+  fillReview(applyCorrectionsToData(currentScanData, allCorr));
+});
 
 // ── Payment method ────────────────────────────────────────────────────────
 function setMethod(method, warn=false) {

@@ -13,6 +13,7 @@ SCOPES = [
 
 EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable"]
 ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
+CORRECTIONS_HEADERS = ["store", "raw_text", "corrected_name", "created_at"]
 
 
 def _get_client() -> gspread.Client:
@@ -55,6 +56,7 @@ class SheetsDB:
         self._ss = _get_spreadsheet()
         self._expenses_ws = _ensure_worksheet(self._ss, "expenses", EXPENSES_HEADERS)
         self._items_ws = _ensure_worksheet(self._ss, "price_items", ITEMS_HEADERS)
+        self._corrections_ws = _ensure_worksheet(self._ss, "corrections", CORRECTIONS_HEADERS)
         self._migrate_items_headers()
         self._migrate_expenses_headers()
 
@@ -168,3 +170,22 @@ class SheetsDB:
             if name and name.upper() not in seen:
                 seen[name.upper()] = name
         return [seen[k] for k in sorted_names[:limit] if k in seen]
+
+    def get_corrections(self, store: str) -> list[dict]:
+        records = self._corrections_ws.get_all_records()
+        store_key = store.upper().strip()
+        return [r for r in records if str(r.get("store", "")).upper().strip() == store_key]
+
+    def save_correction(self, store: str, raw_text: str, corrected_name: str):
+        records = self._corrections_ws.get_all_records()
+        for i, r in enumerate(records):
+            if (str(r.get("store", "")).upper().strip() == store.upper().strip() and
+                    str(r.get("raw_text", "")).upper().strip() == raw_text.upper().strip()):
+                row_idx = i + 2
+                self._corrections_ws.update_cell(row_idx, 3, corrected_name)
+                self._corrections_ws.update_cell(row_idx, 4, self._now())
+                return
+        self._corrections_ws.append_row(
+            [store, raw_text, corrected_name, self._now()],
+            value_input_option="RAW",
+        )
