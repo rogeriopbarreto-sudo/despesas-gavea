@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Sky -->
+  <rect width="32" height="32" rx="7" fill="#4a88b0"/>
+
+  <!-- Pedra da Gávea — silhuete simplificado com o perfil característico -->
+  <!-- Massa rochosa: dois picos, lado direito mais plano/tabular -->
+  <path d="M1,23
+    L4,17 L6,13 Q8,9 11,10
+    L13,7 Q15,4 16,5
+    L19,9 Q21,7 23,9
+    L26,13 L29,18 L31,22
+    L31,23 Z"
+    fill="#7a6650"/>
+
+  <!-- Face iluminada da rocha -->
+  <path d="M16,5 L19,9 L21,7 L23,9 L26,13 L24,13 L21,10 L19,12 L17,9 Z"
+    fill="#9a8470"/>
+
+  <!-- Vegetação / linha de árvores -->
+  <ellipse cx="3"  cy="23" rx="4" ry="4" fill="#2d6b20"/>
+  <ellipse cx="9"  cy="22" rx="5" ry="4" fill="#2a5c1e"/>
+  <ellipse cx="16" cy="23" rx="6" ry="4" fill="#3d7a2c"/>
+  <ellipse cx="23" cy="22" rx="5" ry="4" fill="#2a5c1e"/>
+  <ellipse cx="29" cy="23" rx="4" ry="4" fill="#2d6b20"/>
+  <rect x="0" y="25" width="32" height="7" rx="0" fill="#2a5c1e"/>
+
+  <!-- Piscina — toque do imóvel -->
+  <rect x="8" y="27" width="16" height="4" rx="1" fill="#5aafcf" opacity="0.7"/>
+</svg>
