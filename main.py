@@ -11,6 +11,8 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+APP_VERSION = "1.3"
+
 app = FastAPI(title="Despesas Gávea")
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -53,6 +55,22 @@ class ExpenseIn(BaseModel):
 def index():
     html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     return HTMLResponse(content=html)
+
+
+@app.get("/api/version")
+def version():
+    return {"version": APP_VERSION}
+
+
+@app.get("/api/health")
+def health():
+    try:
+        db = get_db()
+        # Light read to confirm Sheets access
+        db._expenses_ws.row_values(1)
+        return {"status": "ok", "sheets": "connected"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Sheets error: {e}")
 
 
 @app.post("/api/read-receipt")
