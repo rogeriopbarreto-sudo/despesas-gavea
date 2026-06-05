@@ -1,5 +1,9 @@
+import base64
 import json
 import os
+import threading
+import urllib.parse
+import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -30,6 +34,56 @@ app = FastAPI(title="Despesas Gávea", lifespan=lifespan)
 
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# ── WhatsApp notification ─────────────────────────────────────────────────────
+
+def _fmt_brl(value: float) -> str:
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+def send_whatsapp_notification(store: str, description: str, value: float,
+                               date: str, payment_method: str,
+                               reimbursable: bool, items: list):
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
+    auth_token  = os.environ.get("TWILIO_AUTH_TOKEN")
+    from_num    = os.environ.get("TWILIO_FROM")
+    to_num      = os.environ.get("TWILIO_TO")
+    if not all([account_sid, auth_token, from_num, to_num]):
+        return
+
+    date_fmt = "/".join(reversed(date.split("-"))) if date else ""
+    pay_icon = {"Cartão de Crédito": "💳", "Vale Alimentação": "🍽️", "Pix": "📱"}.get(payment_method, "")
+    pay_str = f" · {pay_icon} {payment_method}" if payment_method else ""
+
+    lines = ["🧾 *Nova despesa*",
+             f"🏪 *{store or 'Sem estabelecimento'}*"]
+    if description and description != store:
+        lines.append(f"📝 {description}")
+    lines.append(f"📅 {date_fmt}{pay_str}")
+    lines.append(f"*Total: {_fmt_brl(value)}*")
+    if reimbursable:
+        lines.append("⚠️ *SOLICITA REEMBOLSO*")
+
+    MAX_ITEMS = 5
+    shown = items[:MAX_ITEMS]
+    if shown:
+        lines.append("")
+        for it in shown:
+            price = float(it.get("total_price") or it.get("unit_price") or 0)
+            lines.append(f"• {it.get('name', '?')} — {_fmt_brl(price)}")
+        if len(items) > MAX_ITEMS:
+            lines.append(f"_{len(items) - MAX_ITEMS} itens a mais_")
+
+    body = "\n".join(lines)
+    data = urllib.parse.urlencode({"From": from_num, "To": to_num, "Body": body}).encode()
+    url  = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    req  = urllib.request.Request(url, data=data, method="POST")
+    creds = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode()
+    req.add_header("Authorization", f"Basic {creds}")
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
+
 
 # Lazy-init DB per request to avoid cold-start auth errors on startup
 def get_db():
@@ -148,6 +202,13 @@ def read_receipt(req: ReadReceiptRequest):
 def create_expense(exp: ExpenseIn):
     db = get_db()
     expense_id = db.append_expense(exp.model_dump())
+    threading.Thread(
+        target=send_whatsapp_notification,
+        args=(exp.store, exp.description, exp.value,
+              exp.date, exp.payment_method, exp.reimbursable,
+              [i.model_dump() for i in exp.items]),
+        daemon=True,
+    ).start()
     return {"id": expense_id}
 
 
