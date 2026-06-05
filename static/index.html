@@ -195,16 +195,27 @@ input:checked + .t-slider:before { transform: translateX(20px); }
 }
 .navbtn.active { color: var(--green); }
 .navbtn .icon { font-size: 20px; }
-.cam-slot { flex: 0 0 84px; display: flex; align-items: center; justify-content: center; }
+.cam-slot { flex: 0 0 120px; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .cam-fab {
   width: 58px; height: 58px; border-radius: 50%;
   background: var(--orange); color: #fff; border: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 16px rgba(212,99,26,.4);
   transition: transform .1s, box-shadow .1s;
+  flex-shrink: 0;
 }
 .cam-fab:active { transform: scale(.93); box-shadow: 0 2px 8px rgba(212,99,26,.3); }
 .cam-fab svg { width: 27px; height: 27px; fill: #fff; }
+.gal-sat {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--ink-soft); color: #fff; border: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,.18);
+  transition: transform .1s;
+  flex-shrink: 0;
+}
+.gal-sat:active { transform: scale(.93); }
+.gal-sat svg { width: 18px; height: 18px; fill: #fff; }
 
 /* ── Bottom sheet ── */
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 40; display: none; }
@@ -413,10 +424,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
   <div class="cam-slot">
     <!-- capture="environment" abre câmera traseira direto no celular -->
     <input type="file" accept="image/*" capture="environment" id="camera-input" style="display:none">
+    <input type="file" accept="image/*" id="gallery-input" style="display:none">
     <button class="cam-fab" id="cam-fab" title="Fotografar nota">
       <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 15.2A3.2 3.2 0 1 0 12 8.8a3.2 3.2 0 0 0 0 6.4zm0-5a1.8 1.8 0 1 1 0 3.6 1.8 1.8 0 0 1 0-3.6z"/>
         <path d="M9 2L7.17 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.17L15 2H9zm3 14.5A5.5 5.5 0 1 1 12 6.5a5.5 5.5 0 0 1 0 11z"/>
+      </svg>
+    </button>
+    <button class="gal-sat" id="gal-fab" title="Escolher da galeria">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
       </svg>
     </button>
   </div>
@@ -568,6 +585,13 @@ $("cam-fab").addEventListener("click", () => {
 });
 $("camera-input").addEventListener("change", e => handleFile(e.target.files));
 
+// ── Galeria FAB → abre seletor de fotos ──────────────────────────────────
+$("gal-fab").addEventListener("click", () => {
+  resetUpload();
+  $("gallery-input").click();
+});
+$("gallery-input").addEventListener("change", e => handleFile(e.target.files));
+
 function handleFile(fileList) {
   const file = fileList && fileList[0];
   if (!file) return;
@@ -607,6 +631,7 @@ function resetUpload() {
   currentScanData = null;
   autoResolved = [];
   $("camera-input").value = "";
+  $("gallery-input").value = "";
   $("brief-desc").value = "";
   $("preview-area").style.display = "none";
   $("clarify-area").style.display = "none";
