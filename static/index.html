@@ -316,14 +316,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 
 /* ── Prices tab ── */
 .search-wrap { margin-bottom: 10px; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.chip {
-  font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--card);
-  border: 1.5px solid var(--line); border-radius: 100px; padding: 6px 14px;
-  cursor: pointer; color: var(--ink); transition: border-color .15s, color .15s;
-}
-.chip:hover { border-color: var(--green); color: var(--green); }
-.cat-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.cat-chips {display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .cat-chips::-webkit-scrollbar { display: none; }
 .cat-chip {
   font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--card);
@@ -865,6 +858,7 @@ async function saveExpense() {
       throw new Error(detail);
     }
     closeSheet(); resetUpload();
+    switchTab('desp');
     showToast("✓ Despesa salva!");
     await loadExpenses();
   } catch(e) { setErr("Erro ao salvar: " + (e.message||"Tente novamente.")); }
@@ -956,16 +950,23 @@ async function delExpense(id) {
   if (!confirm("Apagar esta despesa?")) return;
   try {
     const res=await fetch(`/api/expenses/${encodeURIComponent(id)}`,{method:"DELETE"});
-    if (res.ok) { showToast("Despesa apagada."); await loadExpenses(); }
-    else setErr("Erro ao apagar.");
+    if (res.ok) {
+      expenses = expenses.filter(e => String(e.id) !== String(id));
+      renderExpenses();
+      showToast("Despesa apagada.");
+    } else setErr("Erro ao apagar.");
   } catch { setErr("Erro ao apagar."); }
 }
 
 async function markReimbDone(id) {
   try {
     const res = await fetch(`/api/expenses/${encodeURIComponent(id)}/reimb-done`, { method: "PATCH" });
-    if (res.ok) { showToast("✓ Reembolso concluído!"); await loadExpenses(); }
-    else showToast("Erro ao atualizar.");
+    if (res.ok) {
+      const exp = expenses.find(e => String(e.id) === String(id));
+      if (exp) exp.reimb_done = "true";
+      renderExpenses();
+      showToast("✓ Reembolso concluído!");
+    } else showToast("Erro ao atualizar.");
   } catch { showToast("Erro ao atualizar."); }
 }
 
@@ -1048,12 +1049,6 @@ $("price-search").addEventListener("input", e => {
   }
   renderPrices(q);
 });
-
-function pickChip(el, name) {
-  $("price-search").value = name;
-  currentPriceQuery = name;
-  renderPrices(name);
-}
 
 async function renderPrices(query) {
   const res = $("price-results");
