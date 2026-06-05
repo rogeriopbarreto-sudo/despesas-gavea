@@ -561,7 +561,9 @@ function switchTab(tab) {
   $(`screen-${tab}`).classList.add("active");
   $(`nav-${tab}`).classList.add("active");
   if (tab==="prec") {
-    if (currentCategory) {
+    if (currentCategory === "__all__") {
+      renderAllPrices();
+    } else if (currentCategory) {
       renderByCategory(currentCategory);
     } else {
       const q = $("price-search").value.trim() || currentPriceQuery;
@@ -994,7 +996,8 @@ function categorize(name) {
 }
 
 function initCategoryChips() {
-  $("cat-chips").innerHTML = CATEGORIES.map(cat =>
+  const todos = `<button class="cat-chip" data-cat="__all__" onclick="selectCategory('__all__')">Todos</button>`;
+  $("cat-chips").innerHTML = todos + CATEGORIES.map(cat =>
     `<button class="cat-chip" data-cat="${esc(cat.name)}" onclick="selectCategory('${esc(cat.name)}')">${cat.emoji} ${esc(cat.name)}</button>`
   ).join("");
 }
@@ -1004,7 +1007,23 @@ function selectCategory(name) {
   currentPriceQuery = "";
   $("price-search").value = "";
   document.querySelectorAll(".cat-chip").forEach(b => b.classList.toggle("active", b.dataset.cat === name));
-  renderByCategory(name);
+  if (name === "__all__") renderAllPrices();
+  else renderByCategory(name);
+}
+
+async function renderAllPrices() {
+  const res = $("price-results");
+  res.innerHTML = '<div class="empty"><p>Carregando…</p></div>';
+  try {
+    const r = await fetch("/api/prices");
+    const groups = r.ok ? await r.json() : [];
+    if (!groups.length) { res.innerHTML = '<div class="empty"><p>Nenhum preço registrado ainda.</p></div>'; return; }
+    const sorted = [...groups].sort((a, b) => (a.name||"").localeCompare(b.name||"", "pt-BR", {sensitivity:"base"}));
+    res.innerHTML = sorted.map(g => {
+      const cat = CATEGORIES.find(c => c.name === categorize(g.name));
+      return buildPriceGroupHtml(g, cat ? cat.emoji : "");
+    }).join("");
+  } catch { res.innerHTML = '<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
 }
 
 async function renderByCategory(catName) {
@@ -1020,7 +1039,8 @@ async function renderByCategory(catName) {
       res.innerHTML = `<div class="empty"><p>Nenhum preço registrado para ${cat.emoji} <strong>${esc(catName)}</strong>.</p></div>`;
       return;
     }
-    res.innerHTML = filtered.map(g => buildPriceGroupHtml(g, cat.emoji)).join("");
+    const sorted = [...filtered].sort((a, b) => (a.name||"").localeCompare(b.name||"", "pt-BR", {sensitivity:"base"}));
+    res.innerHTML = sorted.map(g => buildPriceGroupHtml(g, cat.emoji)).join("");
   } catch { res.innerHTML = '<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
 }
 
@@ -1060,7 +1080,8 @@ async function renderPrices(query) {
     const r = await fetch(`/api/prices?q=${encodeURIComponent(query.trim())}`);
     const groups = r.ok ? await r.json() : [];
     if (!groups.length) { res.innerHTML = `<div class="empty"><p>Nenhum preço registrado para "<strong>${esc(query)}</strong>".</p></div>`; return; }
-    res.innerHTML = groups.map(g => {
+    const sorted = [...groups].sort((a, b) => (a.name||"").localeCompare(b.name||"", "pt-BR", {sensitivity:"base"}));
+    res.innerHTML = sorted.map(g => {
       const cat = CATEGORIES.find(c => c.name === categorize(g.name));
       return buildPriceGroupHtml(g, cat ? cat.emoji : "");
     }).join("");
