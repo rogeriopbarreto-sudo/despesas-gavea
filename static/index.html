@@ -102,7 +102,6 @@ body {
   background: none; border: 0; color: rgba(255,255,255,.8);
   outline: none; padding: 10px 0; appearance: none; cursor: pointer;
 }
-.month-strip .count { font-size: 12px; color: rgba(255,255,255,.4); }
 .version-badge { font-size: 10px; color: rgba(255,255,255,.25); letter-spacing: .04em; padding: 4px 0; }
 
 /* ── Scroll area ── */
@@ -149,6 +148,8 @@ body {
 .exp-pill { background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 600; border-radius: 20px; padding: 2px 8px; white-space: nowrap; }
 .exp-pill.orange { background: var(--orange-soft); color: var(--orange); }
 .exp-pill.reimb { background: #e8eef9; color: #2b54c6; }
+.exp-pill.reimb-done { background: var(--green-soft); color: var(--green); }
+.reimb-btn { background: none; border: 1px solid var(--green); color: var(--green); font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 700; border-radius: 20px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
 .exp-arrow { font-size: 16px; color: var(--line); transition: transform .2s; line-height: 1; user-select: none; }
 .exp-arrow.open { transform: rotate(90deg); color: var(--ink-soft); }
 .del-btn { background: none; border: 0; color: var(--ink-soft); cursor: pointer; font-size: 16px; padding: 2px; line-height: 1; }
@@ -311,6 +312,17 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
   cursor: pointer; color: var(--ink); transition: border-color .15s, color .15s;
 }
 .chip:hover { border-color: var(--green); color: var(--green); }
+.cat-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.cat-chips::-webkit-scrollbar { display: none; }
+.cat-chip {
+  font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--card);
+  border: 1.5px solid var(--line); border-radius: 100px; padding: 6px 14px;
+  cursor: pointer; color: var(--ink); white-space: nowrap; flex-shrink: 0;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.cat-chip:hover { border-color: var(--green); color: var(--green); }
+.cat-chip.active { border-color: var(--green); background: var(--green-soft); color: var(--green); font-weight: 600; }
+.cat-badge { font-size: 11px; color: var(--ink-soft); margin-left: 4px; }
 .price-group { background: var(--card); border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(42,92,30,.06); margin-bottom: 10px; overflow: hidden; }
 .pname { font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; padding: 14px 16px 10px; }
 .pname .pu { font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--ink-soft); font-weight: 400; }
@@ -333,9 +345,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 .learned-pill { background: var(--green); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
 
 /* ── Lightbox ── */
-.lb { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 70; display: none; place-items: center; padding: 20px; }
+.lb { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 70; display: none; place-items: center; padding: 20px; overflow: hidden; }
 .lb.on { display: grid; }
-.lb img { max-width: 100%; max-height: 90dvh; border-radius: 10px; }
+.lb img { max-width: 100%; max-height: 90dvh; border-radius: 10px; touch-action: none; transform-origin: center center; cursor: zoom-in; }
 </style>
 </head>
 <body>
@@ -357,7 +369,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
     </div>
     <div class="month-strip">
       <select id="month-filter"><option value="all">Todos os meses</option></select>
-      <span class="count" id="exp-count">—</span>
       <span class="version-badge" id="version-badge"></span>
     </div>
   </div>
@@ -386,10 +397,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
     </div>
   </div>
   <div class="scroll-area" style="padding-top:16px">
+    <div class="cat-chips" id="cat-chips"></div>
     <div class="search-wrap">
       <input id="price-search" type="text" placeholder="Buscar produto… ex: leite, picanha">
     </div>
-    <div class="chips" id="chips"></div>
     <div id="price-results"></div>
   </div>
 </div>
@@ -497,7 +508,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 </div>
 
 <!-- ════ LIGHTBOX ════ -->
-<div class="lb" id="lightbox" onclick="this.classList.remove('on')">
+<div class="lb" id="lightbox">
   <img id="lb-img" alt="nota ampliada">
 </div>
 
@@ -511,6 +522,8 @@ let currentImage = null;
 const METHODS = ["Cartão de Crédito", "Vale Alimentação", "Pix"];
 let currentScanData = null;
 let autoResolved = [];
+let currentPriceQuery = "";
+let currentCategory = "";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const fmtBRL = n => "R$ " + Number(n||0).toLocaleString("pt-BR", {minimumFractionDigits:2,maximumFractionDigits:2});
@@ -537,7 +550,15 @@ function switchTab(tab) {
   document.querySelectorAll(".navbtn").forEach(b=>b.classList.remove("active"));
   $(`screen-${tab}`).classList.add("active");
   $(`nav-${tab}`).classList.add("active");
-  if (tab==="prec") { loadSuggestions(); renderPrices($("price-search").value); }
+  if (tab==="prec") {
+    if (currentCategory) {
+      renderByCategory(currentCategory);
+    } else {
+      const q = $("price-search").value.trim() || currentPriceQuery;
+      $("price-search").value = q;
+      renderPrices(q);
+    }
+  }
 }
 
 // ── Camera FAB → abre câmera direto ───────────────────────────────────────
@@ -847,9 +868,6 @@ function renderExpenses() {
   $("tot-month").textContent = fmtBRL(expenses.filter(e=>monthKey(e.date||"")===thisMonth).reduce((s,e)=>s+Number(e.value||0),0));
   $("tot-all").textContent = fmtBRL(expenses.reduce((s,e)=>s+Number(e.value||0),0));
 
-  const count=shown.length;
-  $("exp-count").textContent = count===0?"Nenhum lançamento":`${count} lançamento${count>1?"s":""}`;
-
   const stores=[...new Set(expenses.map(e=>e.store).filter(Boolean))].sort();
   $("store-list").innerHTML=stores.map(s=>`<option value="${esc(s)}">`).join("");
 
@@ -875,6 +893,7 @@ function renderExpenses() {
     const items = Array.isArray(e.items) ? e.items : [];
     const hasItems = items.length > 0;
     const isReimb = String(e.reimbursable).toLowerCase() === "true";
+    const isReimbDone = String(e.reimb_done).toLowerCase() === "true";
     const itemsHtml = items.map(it => {
       const detail = it.unit === "kg" ? `${fmtBRL(it.unit_price)}/kg` : `${fmtBRL(it.unit_price)}/un`;
       const total = parseFloat(it.total_price)||parseFloat(it.unit_price)||0;
@@ -894,7 +913,8 @@ function renderExpenses() {
         <div class="exp-right">
           <div class="exp-amt">${fmtBRL(e.value)}</div>
           ${e.payment_method?`<div class="exp-pill ${pillClass(e.payment_method)}">${esc(e.payment_method)}</div>`:""}
-          ${isReimb?`<div class="exp-pill reimb">Reembolsar</div>`:""}
+          ${isReimb && !isReimbDone ? `<div class="exp-pill reimb">Reembolsar</div><button class="reimb-btn" onclick="event.stopPropagation();markReimbDone('${esc(e.id)}')">✓ Marcar pago</button>` : ""}
+          ${isReimb && isReimbDone ? `<div class="exp-pill reimb-done">✓ Reembolsado</div>` : ""}
           <button class="del-btn" onclick="event.stopPropagation();delExpense('${esc(e.id)}')" title="apagar">🗑</button>
           ${hasItems?`<span class="exp-arrow" id="arr-${esc(e.id)}">›</span>`:""}
         </div>
@@ -916,38 +936,115 @@ async function delExpense(id) {
   } catch { setErr("Erro ao apagar."); }
 }
 
-// ── Prices ────────────────────────────────────────────────────────────────
-async function loadSuggestions() {
+async function markReimbDone(id) {
   try {
-    const res=await fetch("/api/prices/suggestions");
-    const names=res.ok?await res.json():[];
-    $("chips").innerHTML=names.map(n=>`<button class="chip" onclick="pickChip(this,'${esc(n)}')">${esc(n)}</button>`).join("");
-  } catch {}
+    const res = await fetch(`/api/expenses/${encodeURIComponent(id)}/reimb-done`, { method: "PATCH" });
+    if (res.ok) { showToast("✓ Reembolso concluído!"); await loadExpenses(); }
+    else showToast("Erro ao atualizar.");
+  } catch { showToast("Erro ao atualizar."); }
 }
-function pickChip(el,name) { $("price-search").value=name; renderPrices(name); }
-$("price-search").addEventListener("input",e=>renderPrices(e.target.value));
+
+// ── Categories ────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { name: "Padaria",     emoji: "🥖", keywords: ["pão","bolo","biscoito","farinha","massa","croissant","brioche","torta","rosca","panetone","bisnaga"] },
+  { name: "Carnes",      emoji: "🥩", keywords: ["carne","frango","peixe","linguiça","salsicha","bacon","presunto","picanha","alcatra","costela","bisteca","salmão","atum","camarão","tilapia","pernil"] },
+  { name: "Laticínios",  emoji: "🥛", keywords: ["leite","queijo","iogurte","manteiga","requeijão","cream cheese","creme de leite","ricota","nata","muçarela"] },
+  { name: "Hortifruti",  emoji: "🥦", keywords: ["alface","tomate","cebola","alho","batata","cenoura","abobrinha","brócolis","espinafre","limão","laranja","banana","maçã","uva","morango","mamão","manga","melão","abacate","couve","rúcula","pepino","pimentão"] },
+  { name: "Mercearia",   emoji: "🛒", keywords: ["arroz","feijão","macarrão","óleo","azeite","açúcar","sal","vinagre","molho","extrato","enlatado","conserva","lentilha","grão","aveia","granola","tempero","caldo"] },
+  { name: "Bebidas",     emoji: "🥤", keywords: ["água","suco","refrigerante","cerveja","vinho","café","chá","achocolatado","isotônico","energético","kombucha","leite de coco"] },
+  { name: "Limpeza",     emoji: "🧹", keywords: ["detergente","sabão","desinfetante","limpador","amaciante","alvejante","esponja","vassoura","rodo","pano","balde","luva","saco de lixo","multiuso","limpeza"] },
+  { name: "Higiene",     emoji: "🧴", keywords: ["shampoo","condicionador","sabonete","creme","desodorante","papel higiênico","absorvente","dental","fio dental","pasta","perfume","hidratante"] },
+  { name: "Jardinagem",  emoji: "🌱", keywords: ["terra","adubo","vaso","muda","semente","fertilizante","substrato","inseticida","herbicida","regador","poda"] },
+  { name: "Veículo",     emoji: "🚗", keywords: ["combustível","gasolina","etanol","óleo motor","pneu","lavagem","lubrificante","pedágio","estacionamento","freio","filtro"] },
+  { name: "Casa",        emoji: "🏠", keywords: ["lâmpada","pilha","tinta","parafuso","cola","vedante","mangueira","elétrico","hidráulico","tomada","fio","rolamento","dobradiça","cadeado","prateleira"] },
+];
+
+function categorize(name) {
+  const n = (name || "").toLowerCase();
+  for (const cat of CATEGORIES) {
+    if (cat.keywords.some(kw => n.includes(kw))) return cat.name;
+  }
+  return null;
+}
+
+function initCategoryChips() {
+  $("cat-chips").innerHTML = CATEGORIES.map(cat =>
+    `<button class="cat-chip" data-cat="${esc(cat.name)}" onclick="selectCategory('${esc(cat.name)}')">${cat.emoji} ${esc(cat.name)}</button>`
+  ).join("");
+}
+
+function selectCategory(name) {
+  currentCategory = name;
+  currentPriceQuery = "";
+  $("price-search").value = "";
+  document.querySelectorAll(".cat-chip").forEach(b => b.classList.toggle("active", b.dataset.cat === name));
+  renderByCategory(name);
+}
+
+async function renderByCategory(catName) {
+  const res = $("price-results");
+  const cat = CATEGORIES.find(c => c.name === catName);
+  if (!cat) return;
+  res.innerHTML = '<div class="empty"><p>Carregando…</p></div>';
+  try {
+    const r = await fetch("/api/prices");
+    const groups = r.ok ? await r.json() : [];
+    const filtered = groups.filter(g => categorize(g.name) === catName);
+    if (!filtered.length) {
+      res.innerHTML = `<div class="empty"><p>Nenhum preço registrado para ${cat.emoji} <strong>${esc(catName)}</strong>.</p></div>`;
+      return;
+    }
+    res.innerHTML = filtered.map(g => buildPriceGroupHtml(g, cat.emoji)).join("");
+  } catch { res.innerHTML = '<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
+}
+
+function buildPriceGroupHtml(g, catEmoji) {
+  const rows = g.entries; const minP = rows.length ? rows[0].price : null;
+  const body = rows.map(row => {
+    const best = rows.length > 1 && row.price === minP;
+    return `<div class="prow${best ? " best" : ""}">
+      <span class="pstore">${esc(row.store)}</span>
+      ${best ? '<span class="badge-best">menor</span>' : ""}
+      <span class="pdate">${shortDate(row.date)}</span>
+      <span class="pprice">${fmtBRL(row.price)}</span>
+    </div>`;
+  }).join("");
+  const badge = catEmoji ? `<span class="cat-badge">${catEmoji}</span>` : "";
+  return `<div class="price-group"><div class="pname">${esc(g.name)} <span class="pu">/ ${esc(g.unit)}</span>${badge}</div>${body}</div>`;
+}
+
+// ── Prices ────────────────────────────────────────────────────────────────
+$("price-search").addEventListener("input", e => {
+  const q = e.target.value;
+  currentPriceQuery = q;
+  if (q.trim()) {
+    currentCategory = "";
+    document.querySelectorAll(".cat-chip").forEach(b => b.classList.remove("active"));
+  }
+  renderPrices(q);
+});
+
+function pickChip(el, name) {
+  $("price-search").value = name;
+  currentPriceQuery = name;
+  renderPrices(name);
+}
 
 async function renderPrices(query) {
-  const res=$("price-results");
-  if (!query||!query.trim()) { res.innerHTML='<div class="empty"><p>Busque um produto ou toque em uma sugestão.</p></div>'; return; }
+  const res = $("price-results");
+  if (!query || !query.trim()) {
+    res.innerHTML = '<div class="empty"><p>Toque em uma categoria ou busque um produto.</p></div>';
+    return;
+  }
   try {
-    const r=await fetch(`/api/prices?q=${encodeURIComponent(query.trim())}`);
-    const groups=r.ok?await r.json():[];
-    if (!groups.length) { res.innerHTML=`<div class="empty"><p>Nenhum preço registrado para "<strong>${esc(query)}</strong>".</p></div>`; return; }
-    res.innerHTML=groups.map(g=>{
-      const rows=g.entries; const minP=rows.length?rows[0].price:null;
-      const body=rows.map(row=>{
-        const best=rows.length>1&&row.price===minP;
-        return `<div class="prow${best?" best":""}">
-          <span class="pstore">${esc(row.store)}</span>
-          ${best?'<span class="badge-best">menor</span>':""}
-          <span class="pdate">${shortDate(row.date)}</span>
-          <span class="pprice">${fmtBRL(row.price)}</span>
-        </div>`;
-      }).join("");
-      return `<div class="price-group"><div class="pname">${esc(g.name)} <span class="pu">/ ${esc(g.unit)}</span></div>${body}</div>`;
+    const r = await fetch(`/api/prices?q=${encodeURIComponent(query.trim())}`);
+    const groups = r.ok ? await r.json() : [];
+    if (!groups.length) { res.innerHTML = `<div class="empty"><p>Nenhum preço registrado para "<strong>${esc(query)}</strong>".</p></div>`; return; }
+    res.innerHTML = groups.map(g => {
+      const cat = CATEGORIES.find(c => c.name === categorize(g.name));
+      return buildPriceGroupHtml(g, cat ? cat.emoji : "");
     }).join("");
-  } catch { res.innerHTML='<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
+  } catch { res.innerHTML = '<div class="empty"><p>Erro ao carregar preços.</p></div>'; }
 }
 
 // ── Toggle items expansion ────────────────────────────────────────────────
@@ -960,15 +1057,70 @@ function toggleItems(id) {
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────
+let lbScale = 1, lbStartDist = 0, lbStartScale = 1;
+let lbPanX = 0, lbPanY = 0, lbTouchStart = null, lbLastTap = 0;
+
+function applyLbTransform() {
+  $("lb-img").style.transform = `scale(${lbScale}) translate(${lbPanX}px, ${lbPanY}px)`;
+}
+function resetLbZoom() {
+  lbScale = 1; lbPanX = 0; lbPanY = 0;
+  $("lb-img").style.transform = "";
+}
+
+$("lightbox").addEventListener("click", e => {
+  if (e.target === $("lightbox")) { $("lightbox").classList.remove("on"); resetLbZoom(); }
+});
+
+$("lb-img").addEventListener("touchstart", e => {
+  if (e.touches.length === 2) {
+    lbStartDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    lbStartScale = lbScale;
+    e.preventDefault();
+  } else if (e.touches.length === 1) {
+    lbTouchStart = { x: e.touches[0].clientX - lbPanX * lbScale, y: e.touches[0].clientY - lbPanY * lbScale };
+    const now = Date.now();
+    if (now - lbLastTap < 300) resetLbZoom();
+    lbLastTap = now;
+  }
+}, { passive: false });
+
+$("lb-img").addEventListener("touchmove", e => {
+  if (e.touches.length === 2) {
+    const dist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    lbScale = Math.max(1, Math.min(5, lbStartScale * (dist / lbStartDist)));
+    applyLbTransform();
+    e.preventDefault();
+  } else if (e.touches.length === 1 && lbScale > 1 && lbTouchStart) {
+    lbPanX = (e.touches[0].clientX - lbTouchStart.x) / lbScale;
+    lbPanY = (e.touches[0].clientY - lbTouchStart.y) / lbScale;
+    applyLbTransform();
+    e.preventDefault();
+  }
+}, { passive: false });
+
+$("lb-img").addEventListener("touchend", () => { lbTouchStart = null; });
+
 function showLB(id) {
-  const e=expenses.find(x=>x.id===id);
-  if (e&&e.thumb_b64) { $("lb-img").src=e.thumb_b64; $("lightbox").classList.add("on"); }
+  const e = expenses.find(x => x.id === id);
+  if (e && e.thumb_b64) {
+    $("lb-img").src = e.thumb_b64;
+    resetLbZoom();
+    $("lightbox").classList.add("on");
+  }
 }
 
 // ── Error ─────────────────────────────────────────────────────────────────
 function setErr(msg) { $("err-box").innerHTML=`<div class="err-box">${esc(msg)}</div>`; }
 
 // ── Init ──────────────────────────────────────────────────────────────────
+initCategoryChips();
 loadExpenses();
 fetch("/api/version").then(r=>r.ok?r.json():null).then(d=>{
   if (d?.version) $("version-badge").textContent = d.version;

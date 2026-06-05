@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.7"
+APP_VERSION = "1.8"
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ async def lifespan(app: FastAPI):
     db = SheetsDB()
     db._migrate_items_headers()
     db._migrate_expenses_headers()
+    db._migrate_reimb_done()
     yield
 
 
@@ -154,6 +155,15 @@ def create_expense(exp: ExpenseIn):
 def list_expenses(month: str | None = None):
     db = get_db()
     return db.list_expenses(month=month)
+
+
+@app.patch("/api/expenses/{expense_id}/reimb-done", status_code=200)
+def mark_reimb_done(expense_id: str):
+    db = get_db()
+    found = db.mark_reimb_done(expense_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Despesa não encontrada.")
+    return {"ok": True}
 
 
 @app.delete("/api/expenses/{expense_id}")

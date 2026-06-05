@@ -12,7 +12,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable"]
+EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable", "reimb_done"]
 ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
 CORRECTIONS_HEADERS = ["store", "raw_text", "corrected_name", "created_at"]
 
@@ -74,6 +74,13 @@ class SheetsDB:
             self._expenses_ws.resize(rows=1000, cols=new_col)
             self._expenses_ws.update_cell(1, new_col, "reimbursable")
 
+    def _migrate_reimb_done(self):
+        existing = self._expenses_ws.row_values(1)
+        if "reimb_done" not in existing:
+            new_col = len(existing) + 1
+            self._expenses_ws.resize(rows=1000, cols=new_col)
+            self._expenses_ws.update_cell(1, new_col, "reimb_done")
+
     def _now(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
@@ -89,6 +96,7 @@ class SheetsDB:
             data.get("thumb_b64", ""),
             self._now(),
             "true" if data.get("reimbursable") else "false",
+            "false",
         ]
         self._expenses_ws.append_row(row, value_input_option="RAW")
 
@@ -177,6 +185,18 @@ class SheetsDB:
         records = self._corrections_ws.get_all_records()
         store_key = store.upper().strip()
         return [r for r in records if str(r.get("store", "")).upper().strip() == store_key]
+
+    def mark_reimb_done(self, expense_id: str) -> bool:
+        headers = self._expenses_ws.row_values(1)
+        try:
+            col = headers.index("reimb_done") + 1
+        except ValueError:
+            return False
+        cell = self._expenses_ws.find(expense_id, in_column=1)
+        if not cell:
+            return False
+        self._expenses_ws.update_cell(cell.row, col, "true")
+        return True
 
     def save_correction(self, store: str, raw_text: str, corrected_name: str):
         records = self._corrections_ws.get_all_records()
