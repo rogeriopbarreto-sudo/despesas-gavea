@@ -161,15 +161,6 @@ body {
 .exp-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .exp-item-detail { color: var(--ink-soft); font-size: 11px; white-space: nowrap; }
 .exp-item-price { font-family: 'Fraunces', serif; font-weight: 600; font-size: 13px; white-space: nowrap; }
-/* ── Toggle switch ── */
-.toggle-wrap { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 2px; }
-.toggle-lbl { font-size: 14px; color: var(--ink); }
-.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
-.toggle input { opacity: 0; width: 0; height: 0; }
-.t-slider { position: absolute; cursor: pointer; inset: 0; background: var(--line); border-radius: 24px; transition: .2s; }
-.t-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
-input:checked + .t-slider { background: var(--green); }
-input:checked + .t-slider:before { transform: translateX(20px); }
 
 /* ── Total geral — discreto no final ── */
 .total-footer { text-align: center; padding: 16px 0 4px; }
@@ -273,20 +264,43 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
 .mbtn.sel { border-color: var(--green); background: var(--green-soft); color: var(--green); }
 
 /* ── Items editor ── */
-.items-head { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 8px; }
+.items-head { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 6px; }
 .items-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); font-weight: 600; }
 .add-item-btn { font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--green); background: none; border: 0; cursor: pointer; font-weight: 700; }
-.irow { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.iname { flex: 1 !important; min-width: 0; font-size: 14px !important; padding: 9px 10px !important; }
-.iprice { width: 70px !important; font-size: 14px !important; padding: 9px 7px !important; }
-.itotal { width: 70px !important; font-size: 14px !important; padding: 9px 7px !important; }
-.iunit { width: 56px !important; font-size: 13px !important; padding: 9px 5px !important; }
-.idel { background: none; border: 0; color: var(--ink-soft); font-size: 18px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+#items-box { background: rgba(0,0,0,.04); border-radius: 10px; overflow: hidden; }
+.irow { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid rgba(0,0,0,.06); margin-bottom: 0; }
+.irow:last-child { border-bottom: none; }
+.iname { flex: 1 !important; min-width: 0; font-size: 14px !important; padding: 0 !important; background: transparent !important; border: none !important; border-radius: 0 !important; }
+.itotal { width: 76px !important; font-size: 14px !important; padding: 0 !important; text-align: right; background: transparent !important; border: none !important; border-radius: 0 !important; font-family: 'Fraunces', serif !important; font-weight: 600 !important; }
+.idel { background: none; border: 0; color: var(--ink-soft); font-size: 16px; cursor: pointer; padding: 2px; flex-shrink: 0; }
 .idel:hover { color: var(--red); }
+
+/* ── Reembolso banner ── */
+.reimb-banner { margin: 16px 0 4px; border-radius: 12px; overflow: hidden; border: 1.5px solid var(--line); }
+.reimb-row { display: flex; align-items: center; background: var(--card); }
+.reimb-bar { width: 5px; background: var(--line); align-self: stretch; flex-shrink: 0; transition: background .2s; }
+.reimb-bar.active { background: #2b54c6; }
+.reimb-inner { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 12px 12px; gap: 10px; }
+.reimb-copy .reimb-title { font-size: 15px; font-weight: 600; color: var(--ink); }
+.reimb-copy .reimb-sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+/* ── Toggle switch ── */
+.toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.t-slider { position: absolute; cursor: pointer; inset: 0; background: var(--line); border-radius: 24px; transition: .2s; }
+.t-slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+input:checked + .t-slider { background: #2b54c6; }
+input:checked + .t-slider:before { transform: translateX(20px); }
 
 /* ── Review box ── */
 .review-box { background: var(--green-soft); border: 1.5px solid var(--green); border-radius: 14px; padding: 14px; margin-top: 16px; }
 .review-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--green); font-weight: 700; margin-bottom: 12px; }
+
+/* ── Review fields — inset style ── */
+.review-box input[type=text], .review-box input[type=date], .review-box input[type=number] {
+  background: rgba(0,0,0,.05); border: none; border-radius: 8px; padding: 11px 12px;
+}
+.review-box input:focus { background: rgba(42,92,30,.08); border-color: transparent; }
 
 /* ── Buttons ── */
 .btn {
@@ -495,12 +509,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); }
         <button type="button" class="mbtn" data-method="Pix"><span class="mic">📱</span>Pix</button>
       </div>
 
-      <div class="toggle-wrap">
-        <span class="toggle-lbl">Solicitar reembolso</span>
-        <label class="toggle">
-          <input type="checkbox" id="r-reimbursable">
-          <span class="t-slider"></span>
-        </label>
+      <div class="reimb-banner">
+        <div class="reimb-row">
+          <div class="reimb-bar" id="reimb-bar"></div>
+          <div class="reimb-inner">
+            <div class="reimb-copy">
+              <div class="reimb-title">Solicitar reembolso</div>
+              <div class="reimb-sub">Ative se esta despesa deve ser reembolsada</div>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="r-reimbursable">
+              <span class="t-slider"></span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <div class="items-head">
@@ -633,6 +655,7 @@ function resetUpload() {
   $("review-area").style.display = "none";
   $("err-box").innerHTML = "";
   $("r-reimbursable").checked = false;
+  $("reimb-bar").classList.remove("active");
 }
 
 // ── Sheet ─────────────────────────────────────────────────────────────────
@@ -800,6 +823,7 @@ function setMethod(method, warn=false) {
   hint.textContent = warn && !selectedMethod ? "Não identifiquei — toque para escolher." : "Toque para confirmar";
 }
 document.querySelectorAll(".mbtn").forEach(b=>b.addEventListener("click",()=>setMethod(b.dataset.method)));
+$("r-reimbursable").addEventListener("change", e => $("reimb-bar").classList.toggle("active", e.target.checked));
 
 // ── Items editor ──────────────────────────────────────────────────────────
 function renderItems(items) {
@@ -807,13 +831,11 @@ function renderItems(items) {
   (items||[]).forEach(it=>box.appendChild(makeItemRow(it)));
 }
 function makeItemRow(it={}) {
-  const unit = it.unit==="kg"?"kg":"un";
+  const total = it.total_price!=null&&it.total_price!==0 ? Number(it.total_price).toFixed(2) : (it.unit_price!=null&&it.unit_price!==0 ? Number(it.unit_price).toFixed(2) : "");
   const row = document.createElement("div"); row.className="irow";
   row.innerHTML =
     `<input class="iname" type="text" placeholder="produto" value="${esc(it.name||"")}">` +
-    `<input class="iprice" type="number" step="0.01" min="0" placeholder="unit." value="${it.unit_price!=null?Number(it.unit_price).toFixed(2):""}">` +
-    `<input class="itotal" type="number" step="0.01" min="0" placeholder="total" value="${it.total_price!=null&&it.total_price!==0?Number(it.total_price).toFixed(2):""}">` +
-    `<select class="iunit"><option value="un"${unit==="un"?" selected":""}>/ un</option><option value="kg"${unit==="kg"?" selected":""}>/ kg</option></select>` +
+    `<input class="itotal" type="number" step="0.01" min="0" placeholder="R$" value="${total}">` +
     `<button class="idel" title="remover">🗑</button>`;
   row.querySelector(".idel").addEventListener("click",()=>row.remove());
   return row;
@@ -822,10 +844,10 @@ $("add-item").addEventListener("click",()=>$("items-box").appendChild(makeItemRo
 function readItems() {
   return [...document.querySelectorAll("#items-box .irow")].map(r=>({
     name: r.querySelector(".iname").value.trim(),
-    unit_price: parseFloat(r.querySelector(".iprice").value),
+    unit_price: parseFloat(r.querySelector(".itotal").value)||0,
     total_price: parseFloat(r.querySelector(".itotal").value)||0,
-    unit: r.querySelector(".iunit").value,
-  })).filter(i=>i.name && !isNaN(i.unit_price));
+    unit: "un",
+  })).filter(i=>i.name && i.total_price > 0);
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────

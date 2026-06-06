@@ -1,8 +1,6 @@
-import base64
 import json
 import os
 import threading
-import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,7 +14,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-APP_VERSION = "1.8"
+APP_VERSION = "1.9"
 
 
 @asynccontextmanager
@@ -35,33 +33,32 @@ app = FastAPI(title="Despesas Gávea", lifespan=lifespan)
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# ── WhatsApp notification ─────────────────────────────────────────────────────
+# ── Telegram notification ─────────────────────────────────────────────────────
 
 def _fmt_brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def send_whatsapp_notification(store: str, description: str, value: float,
+def send_telegram_notification(store: str, description: str, value: float,
                                date: str, payment_method: str,
                                reimbursable: bool, items: list):
-    account_sid = os.environ.get("TWILIO_ACCOUNT_SID")
-    auth_token  = os.environ.get("TWILIO_AUTH_TOKEN")
-    from_num    = os.environ.get("TWILIO_FROM")
-    to_num      = os.environ.get("TWILIO_TO")
-    if not all([account_sid, auth_token, from_num, to_num]):
+    token   = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not all([token, chat_id]):
+        print("[Telegram] Credenciais ausentes — notificação ignorada.", flush=True)
         return
 
     date_fmt = "/".join(reversed(date.split("-"))) if date else ""
     pay_icon = {"Cartão de Crédito": "💳", "Vale Alimentação": "🍽️", "Pix": "📱"}.get(payment_method, "")
     pay_str = f" · {pay_icon} {payment_method}" if payment_method else ""
 
-    lines = ["🧾 *Nova despesa*",
-             f"🏪 *{store or 'Sem estabelecimento'}*"]
+    lines = ["🧾 <b>Nova despesa</b>",
+             f"🏪 <b>{store or 'Sem estabelecimento'}</b>"]
     if description and description != store:
         lines.append(f"📝 {description}")
     lines.append(f"📅 {date_fmt}{pay_str}")
-    lines.append(f"*Total: {_fmt_brl(value)}*")
+    lines.append(f"<b>Total: {_fmt_brl(value)}</b>")
     if reimbursable:
-        lines.append("⚠️ *SOLICITA REEMBOLSO*")
+        lines.append("⚠️ <b>SOLICITA REEMBOLSO</b>")
 
     MAX_ITEMS = 5
     shown = items[:MAX_ITEMS]
@@ -71,18 +68,18 @@ def send_whatsapp_notification(store: str, description: str, value: float,
             price = float(it.get("total_price") or it.get("unit_price") or 0)
             lines.append(f"• {it.get('name', '?')} — {_fmt_brl(price)}")
         if len(items) > MAX_ITEMS:
-            lines.append(f"_{len(items) - MAX_ITEMS} itens a mais_")
+            lines.append(f"<i>{len(items) - MAX_ITEMS} itens a mais</i>")
 
     body = "\n".join(lines)
-    data = urllib.parse.urlencode({"From": from_num, "To": to_num, "Body": body}).encode()
-    url  = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    url  = f"https://api.telegram.org/bot{token}/sendMessage"
+    data = json.dumps({"chat_id": chat_id, "text": body, "parse_mode": "HTML"}).encode()
     req  = urllib.request.Request(url, data=data, method="POST")
-    creds = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode()
-    req.add_header("Authorization", f"Basic {creds}")
+    req.add_header("Content-Type", "application/json")
     try:
-        urllib.request.urlopen(req, timeout=5)
-    except Exception:
-        pass
+        resp = urllib.request.urlopen(req, timeout=5)
+        print(f"[Telegram] Enviado: {resp.status}", flush=True)
+    except Exception as e:
+        print(f"[Telegram] Erro: {e}", flush=True)
 
 
 # Lazy-init DB per request to avoid cold-start auth errors on startup
@@ -203,7 +200,7 @@ def create_expense(exp: ExpenseIn):
     db = get_db()
     expense_id = db.append_expense(exp.model_dump())
     threading.Thread(
-        target=send_whatsapp_notification,
+        target=send_telegram_notification,
         args=(exp.store, exp.description, exp.value,
               exp.date, exp.payment_method, exp.reimbursable,
               [i.model_dump() for i in exp.items]),
