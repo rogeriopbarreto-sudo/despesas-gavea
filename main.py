@@ -1,8 +1,10 @@
+import functools
 import json
 import os
 import threading
 import urllib.request
 from contextlib import asynccontextmanager
+from datetime import date as _date
 from pathlib import Path
 
 import anthropic
@@ -17,14 +19,17 @@ load_dotenv()
 APP_VERSION = "1.9"
 
 
+@functools.lru_cache(maxsize=1)
+def _get_anthropic() -> anthropic.Anthropic:
+    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from sheets import SheetsDB, _get_client
-    _get_client()  # warm up auth cache on startup
+    _get_client()  # warm up auth + spreadsheet cache on startup
     db = SheetsDB()
-    db._migrate_items_headers()
-    db._migrate_expenses_headers()
-    db._migrate_reimb_done()
+    db.migrate()
     yield
 
 
@@ -82,7 +87,6 @@ def send_telegram_notification(store: str, description: str, value: float,
         print(f"[Telegram] Erro: {e}", flush=True)
 
 
-# Lazy-init DB per request to avoid cold-start auth errors on startup
 def get_db():
     from sheets import SheetsDB
     return SheetsDB()
@@ -145,7 +149,7 @@ def health():
 
 @app.post("/api/read-receipt")
 def read_receipt(req: ReadReceiptRequest):
-    today = __import__("datetime").date.today().isoformat()
+    today = _date.today().isoformat()
     prompt = (
         "Você está lendo a foto de um cupom fiscal de supermercado ou recibo brasileiro.\n"
         "Responda APENAS com um objeto JSON, sem texto antes/depois, sem markdown.\n"
@@ -167,8 +171,7 @@ def read_receipt(req: ReadReceiptRequest):
     if req.brief_desc:
         prompt += f' A pessoa descreveu como: "{req.brief_desc}".'
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-    message = client.messages.create(
+    message = _get_anthropic().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1500,
         messages=[{

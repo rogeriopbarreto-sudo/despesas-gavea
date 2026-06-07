@@ -12,77 +12,81 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
-EXPENSES_HEADERS = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable", "reimb_done"]
-ITEMS_HEADERS = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
+EXPENSES_HEADERS    = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable", "reimb_done"]
+ITEMS_HEADERS       = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
 CORRECTIONS_HEADERS = ["store", "raw_text", "corrected_name", "created_at"]
+
+_REIMB_DONE_COL = EXPENSES_HEADERS.index("reimb_done") + 1  # 1-indexed = 10
 
 
 @functools.lru_cache(maxsize=1)
 def _get_client() -> gspread.Client:
-    creds_json = os.environ["GOOGLE_SHEETS_CREDENTIALS"]
-    creds_dict = json.loads(creds_json)
-    # Cloud env vars (Render, Heroku, etc.) may double-escape newlines in the
-    # private key, leaving literal \n instead of actual newline characters.
+    creds_dict = json.loads(os.environ["GOOGLE_SHEETS_CREDENTIALS"])
     if "private_key" in creds_dict:
         pk = creds_dict["private_key"]
-        pk = pk.replace("\\n", "\n")   # double-escaped: \\n → \n
-        pk = pk.replace("\r\n", "\n")  # Windows CRLF → \n
-        pk = pk.replace("\r", "\n")    # old Mac CR → \n
-        creds_dict["private_key"] = pk
+        creds_dict["private_key"] = pk.replace("\\n", "\n").replace("\r\n", "\n").replace("\r", "\n")
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     return gspread.authorize(creds)
 
 
+@functools.lru_cache(maxsize=1)
 def _get_spreadsheet() -> gspread.Spreadsheet:
-    client = _get_client()
-    spreadsheet_id = os.environ["GOOGLE_SPREADSHEET_ID"]
-    return client.open_by_key(spreadsheet_id)
+    return _get_client().open_by_key(os.environ["GOOGLE_SPREADSHEET_ID"])
 
 
-def _ensure_worksheet(spreadsheet: gspread.Spreadsheet, title: str, headers: list[str]) -> gspread.Worksheet:
+def _open_or_create(title: str, headers: list[str]) -> gspread.Worksheet:
+    ss = _get_spreadsheet()
     try:
-        ws = spreadsheet.worksheet(title)
+        ws = ss.worksheet(title)
     except gspread.WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(title=title, rows=1000, cols=len(headers))
+        ws = ss.add_worksheet(title=title, rows=1000, cols=len(headers))
         ws.append_row(headers)
         return ws
-
-    existing = ws.row_values(1)
-    if not existing:
+    if not ws.row_values(1):
         ws.append_row(headers)
     return ws
 
 
+@functools.lru_cache(maxsize=1)
+def _expenses_ws() -> gspread.Worksheet:
+    return _open_or_create("expenses", EXPENSES_HEADERS)
+
+
+@functools.lru_cache(maxsize=1)
+def _items_ws() -> gspread.Worksheet:
+    return _open_or_create("price_items", ITEMS_HEADERS)
+
+
+@functools.lru_cache(maxsize=1)
+def _corrections_ws() -> gspread.Worksheet:
+    return _open_or_create("corrections", CORRECTIONS_HEADERS)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 class SheetsDB:
     def __init__(self):
-        self._ss = _get_spreadsheet()
-        self._expenses_ws = _ensure_worksheet(self._ss, "expenses", EXPENSES_HEADERS)
-        self._items_ws = _ensure_worksheet(self._ss, "price_items", ITEMS_HEADERS)
-        self._corrections_ws = _ensure_worksheet(self._ss, "corrections", CORRECTIONS_HEADERS)
+        self._expenses_ws    = _expenses_ws()
+        self._items_ws       = _items_ws()
+        self._corrections_ws = _corrections_ws()
 
-    def _migrate_items_headers(self):
-        existing = self._items_ws.row_values(1)
-        if "total_price" not in existing:
-            new_col = len(existing) + 1
-            self._items_ws.resize(rows=1000, cols=new_col)
-            self._items_ws.update_cell(1, new_col, "total_price")
+    def migrate(self):
+        """Adiciona colunas ausentes introduzidas em versões posteriores."""
+        exp_hdrs = self._expenses_ws.row_values(1)
+        for col_name in ("reimbursable", "reimb_done"):
+            if col_name not in exp_hdrs:
+                col = len(exp_hdrs) + 1
+                self._expenses_ws.resize(rows=1000, cols=col)
+                self._expenses_ws.update_cell(1, col, col_name)
+                exp_hdrs.append(col_name)
 
-    def _migrate_expenses_headers(self):
-        existing = self._expenses_ws.row_values(1)
-        if "reimbursable" not in existing:
-            new_col = len(existing) + 1
-            self._expenses_ws.resize(rows=1000, cols=new_col)
-            self._expenses_ws.update_cell(1, new_col, "reimbursable")
-
-    def _migrate_reimb_done(self):
-        existing = self._expenses_ws.row_values(1)
-        if "reimb_done" not in existing:
-            new_col = len(existing) + 1
-            self._expenses_ws.resize(rows=1000, cols=new_col)
-            self._expenses_ws.update_cell(1, new_col, "reimb_done")
-
-    def _now(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
+        item_hdrs = self._items_ws.row_values(1)
+        if "total_price" not in item_hdrs:
+            col = len(item_hdrs) + 1
+            self._items_ws.resize(rows=1000, cols=col)
+            self._items_ws.update_cell(1, col, "total_price")
 
     def append_expense(self, data: dict) -> str:
         expense_id = str(uuid.uuid4())
@@ -94,7 +98,7 @@ class SheetsDB:
             data.get("date", ""),
             data.get("payment_method", ""),
             data.get("thumb_b64", ""),
-            self._now(),
+            _now(),
             "true" if data.get("reimbursable") else "false",
             "false",
         ]
@@ -109,7 +113,7 @@ class SheetsDB:
                 item.get("unit", "un"),
                 data.get("store", ""),
                 data.get("date", ""),
-                self._now(),
+                _now(),
                 str(item.get("total_price", 0)),
             ]
             for item in data.get("items", [])
@@ -130,10 +134,10 @@ class SheetsDB:
         for it in all_items:
             eid = str(it.get("expense_id", ""))
             items_map.setdefault(eid, []).append({
-                "name": it.get("product_name", ""),
-                "unit_price": it.get("unit_price", 0),
+                "name":        it.get("product_name", ""),
+                "unit_price":  it.get("unit_price", 0),
                 "total_price": it.get("total_price", 0),
-                "unit": it.get("unit", "un"),
+                "unit":        it.get("unit", "un"),
             })
         for r in records:
             r["items"] = items_map.get(str(r.get("id", "")), [])
@@ -141,16 +145,14 @@ class SheetsDB:
         return records
 
     def delete_expense(self, expense_id: str) -> bool:
-        # delete from expenses sheet
         cell = self._expenses_ws.find(expense_id, in_column=1)
         if not cell:
             return False
         self._expenses_ws.delete_rows(cell.row)
 
-        # delete all matching price_items rows (iterate in reverse to keep row indices valid)
         all_items = self._items_ws.get_all_values()
         rows_to_delete = [
-            i + 1  # 1-indexed
+            i + 1
             for i, row in enumerate(all_items)
             if len(row) > 1 and row[1] == expense_id
         ]
@@ -168,7 +170,7 @@ class SheetsDB:
 
     def price_suggestions(self, limit: int = 10) -> list[str]:
         records = self._items_ws.get_all_records()
-        seen: dict[str, tuple[str, int]] = {}  # upper → (original_casing, count)
+        seen: dict[str, tuple[str, int]] = {}
         for r in records:
             name = str(r.get("product_name", "")).strip()
             if not name:
@@ -178,24 +180,20 @@ class SheetsDB:
                 seen[key] = (seen[key][0], seen[key][1] + 1)
             else:
                 seen[key] = (name, 1)
-        sorted_keys = sorted(seen, key=lambda k: seen[k][1], reverse=True)
-        return [seen[k][0] for k in sorted_keys[:limit]]
+        return [seen[k][0] for k in sorted(seen, key=lambda k: seen[k][1], reverse=True)[:limit]]
 
     def get_corrections(self, store: str) -> list[dict]:
-        records = self._corrections_ws.get_all_records()
         store_key = store.upper().strip()
-        return [r for r in records if str(r.get("store", "")).upper().strip() == store_key]
+        return [
+            r for r in self._corrections_ws.get_all_records()
+            if str(r.get("store", "")).upper().strip() == store_key
+        ]
 
     def mark_reimb_done(self, expense_id: str) -> bool:
-        headers = self._expenses_ws.row_values(1)
-        try:
-            col = headers.index("reimb_done") + 1
-        except ValueError:
-            return False
         cell = self._expenses_ws.find(expense_id, in_column=1)
         if not cell:
             return False
-        self._expenses_ws.update_cell(cell.row, col, "true")
+        self._expenses_ws.update_cell(cell.row, _REIMB_DONE_COL, "true")
         return True
 
     def save_correction(self, store: str, raw_text: str, corrected_name: str):
@@ -205,9 +203,9 @@ class SheetsDB:
                     str(r.get("raw_text", "")).upper().strip() == raw_text.upper().strip()):
                 row_idx = i + 2
                 self._corrections_ws.update_cell(row_idx, 3, corrected_name)
-                self._corrections_ws.update_cell(row_idx, 4, self._now())
+                self._corrections_ws.update_cell(row_idx, 4, _now())
                 return
         self._corrections_ws.append_row(
-            [store, raw_text, corrected_name, self._now()],
+            [store, raw_text, corrected_name, _now()],
             value_input_option="RAW",
         )
