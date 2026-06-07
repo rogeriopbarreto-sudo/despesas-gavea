@@ -827,9 +827,10 @@ $("r-reimbursable").addEventListener("change", e => $("reimb-bar").classList.tog
 
 // ── Items editor ──────────────────────────────────────────────────────────
 function syncTotal() {
-  const sum = [...document.querySelectorAll("#items-box .itotal")]
-    .reduce((s, inp) => s + (parseFloat(inp.value) || 0), 0);
-  if (sum > 0) $("r-value").value = sum.toFixed(2);
+  const rows = [...document.querySelectorAll("#items-box .itotal")];
+  if (!rows.length) return;
+  const sum = rows.reduce((s, inp) => s + (parseFloat(inp.value) || 0), 0);
+  $("r-value").value = sum > 0 ? sum.toFixed(2) : "";
 }
 function renderItems(items) {
   const box=$("items-box"); box.innerHTML="";

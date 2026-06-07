@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
@@ -123,7 +123,7 @@ class ItemIn(BaseModel):
 class ExpenseIn(BaseModel):
     store: str = ""
     description: str = ""
-    value: float
+    value: float = Field(gt=0)
     date: str
     payment_method: str = ""
     reimbursable: bool = False
