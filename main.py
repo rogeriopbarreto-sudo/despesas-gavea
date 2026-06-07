@@ -40,6 +40,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ── Telegram notification ─────────────────────────────────────────────────────
 
+PIX_PHONE = "21-97064-2002"  # número para receber reembolso via Pix
+
 def _fmt_brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -85,6 +87,17 @@ def send_telegram_notification(store: str, description: str, value: float,
         print(f"[Telegram] Enviado: {resp.status}", flush=True)
     except Exception as e:
         print(f"[Telegram] Erro: {e}", flush=True)
+
+    if reimbursable:
+        pix_text = f"faz um pix de {_fmt_brl(value)} para {PIX_PHONE}"
+        pix_data = json.dumps({"chat_id": chat_id, "text": pix_text}).encode()
+        pix_req  = urllib.request.Request(url, data=pix_data, method="POST")
+        pix_req.add_header("Content-Type", "application/json")
+        try:
+            resp2 = urllib.request.urlopen(pix_req, timeout=5)
+            print(f"[Telegram] Pix enviado: {resp2.status}", flush=True)
+        except Exception as e:
+            print(f"[Telegram] Erro Pix: {e}", flush=True)
 
 
 def get_db():
