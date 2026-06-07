@@ -826,6 +826,11 @@ document.querySelectorAll(".mbtn").forEach(b=>b.addEventListener("click",()=>set
 $("r-reimbursable").addEventListener("change", e => $("reimb-bar").classList.toggle("active", e.target.checked));
 
 // ── Items editor ──────────────────────────────────────────────────────────
+function syncTotal() {
+  const sum = [...document.querySelectorAll("#items-box .itotal")]
+    .reduce((s, inp) => s + (parseFloat(inp.value) || 0), 0);
+  if (sum > 0) $("r-value").value = sum.toFixed(2);
+}
 function renderItems(items) {
   const box=$("items-box"); box.innerHTML="";
   (items||[]).forEach(it=>box.appendChild(makeItemRow(it)));
@@ -837,7 +842,8 @@ function makeItemRow(it={}) {
     `<input class="iname" type="text" placeholder="produto" value="${esc(it.name||"")}">` +
     `<input class="itotal" type="number" step="0.01" min="0" placeholder="R$" value="${total}">` +
     `<button class="idel" title="remover">🗑</button>`;
-  row.querySelector(".idel").addEventListener("click",()=>row.remove());
+  row.querySelector(".idel").addEventListener("click", () => { row.remove(); syncTotal(); });
+  row.querySelector(".itotal").addEventListener("input", syncTotal);
   return row;
 }
 $("add-item").addEventListener("click",()=>$("items-box").appendChild(makeItemRow()));
