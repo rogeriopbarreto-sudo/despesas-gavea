@@ -596,18 +596,40 @@ function switchTab(tab) {
 }
 
 // ── Camera FAB → abre câmera direto ───────────────────────────────────────
-$("cam-fab").addEventListener("click", () => {
-  resetUpload();
+$("cam-fab").addEventListener("click", async () => {
+  // Checa permissão antes de tentar abrir (evita falha silenciosa no MIUI/Xiaomi)
+  if (navigator.permissions) {
+    try {
+      const perm = await navigator.permissions.query({ name: "camera" });
+      if (perm.state === "denied") {
+        setErr("Câmera bloqueada. Nas configurações do navegador, permita o acesso à câmera para este site e recarregue a página.");
+        return;
+      }
+    } catch(e) { /* navegador não suporta permissions API — tenta mesmo assim */ }
+  }
+  // Não resetar camera-input.value ANTES do click — browsers Android bloqueiam
+  // programmatic .click() se o input foi modificado no mesmo handler
+  resetState();
   $("camera-input").click();
 });
-$("camera-input").addEventListener("change", e => handleFile(e.target.files));
+$("camera-input").addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0];
+  $("camera-input").value = ""; // limpa após capturar referência — permite retomar
+  if (!file) return;
+  handleFile([file]);
+});
 
 // ── Galeria FAB → abre seletor de fotos ──────────────────────────────────
 $("gal-fab").addEventListener("click", () => {
-  resetUpload();
+  resetState();
   $("gallery-input").click();
 });
-$("gallery-input").addEventListener("change", e => handleFile(e.target.files));
+$("gallery-input").addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0];
+  $("gallery-input").value = "";
+  if (!file) return;
+  handleFile([file]);
+});
 
 function handleFile(fileList) {
   const file = fileList && fileList[0];
@@ -643,12 +665,10 @@ function scaleCanvas(img, maxW, quality) {
 }
 
 $("clear-btn").addEventListener("click", resetUpload);
-function resetUpload() {
+function resetState() {
   currentImage = null;
   currentScanData = null;
   autoResolved = [];
-  $("camera-input").value = "";
-  $("gallery-input").value = "";
   $("brief-desc").value = "";
   $("preview-area").style.display = "none";
   $("clarify-area").style.display = "none";
@@ -656,6 +676,11 @@ function resetUpload() {
   $("err-box").innerHTML = "";
   $("r-reimbursable").checked = false;
   $("reimb-bar").classList.remove("active");
+}
+function resetUpload() {
+  resetState();
+  $("camera-input").value = "";
+  $("gallery-input").value = "";
 }
 
 // ── Sheet ─────────────────────────────────────────────────────────────────
