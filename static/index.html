@@ -555,7 +555,7 @@ const METHODS = ["Cartão de Crédito", "Vale Alimentação", "Pix"];
 let currentScanData = null;
 let autoResolved = [];
 let currentPriceQuery = "";
-let currentCategory = "";
+let currentCategory = "__all__";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const fmtBRL = n => "R$ " + Number(n||0).toLocaleString("pt-BR", {minimumFractionDigits:2,maximumFractionDigits:2});
@@ -596,21 +596,18 @@ function switchTab(tab) {
 }
 
 // ── Camera FAB → abre câmera direto ───────────────────────────────────────
-$("cam-fab").addEventListener("click", async () => {
-  // Checa permissão antes de tentar abrir (evita falha silenciosa no MIUI/Xiaomi)
-  if (navigator.permissions) {
-    try {
-      const perm = await navigator.permissions.query({ name: "camera" });
-      if (perm.state === "denied") {
-        setErr("Câmera bloqueada. Nas configurações do navegador, permita o acesso à câmera para este site e recarregue a página.");
-        return;
-      }
-    } catch(e) { /* navegador não suporta permissions API — tenta mesmo assim */ }
-  }
-  // Não resetar camera-input.value ANTES do click — browsers Android bloqueiam
-  // programmatic .click() se o input foi modificado no mesmo handler
+$("cam-fab").addEventListener("click", () => {
+  // MIUI/HyperOS perde contexto de gesto após await — disparar click de forma síncrona
+  // e verificar permissão em paralelo para exibir aviso se já estiver bloqueada
   resetState();
   $("camera-input").click();
+  if (navigator.permissions) {
+    navigator.permissions.query({ name: "camera" }).then(perm => {
+      if (perm.state === "denied") {
+        setErr("Câmera bloqueada. Nas configurações do navegador, permita o acesso à câmera para este site e recarregue a página.");
+      }
+    }).catch(() => {});
+  }
 });
 $("camera-input").addEventListener("change", e => {
   const file = e.target.files && e.target.files[0];
@@ -1028,17 +1025,18 @@ async function markReimbDone(id) {
 
 // ── Categories ────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { name: "Padaria",     emoji: "🥖", keywords: ["pão","bolo","biscoito","farinha","massa","croissant","brioche","torta","rosca","panetone","bisnaga"] },
-  { name: "Carnes",      emoji: "🥩", keywords: ["carne","frango","peixe","linguiça","salsicha","bacon","presunto","picanha","alcatra","costela","bisteca","salmão","atum","camarão","tilapia","pernil"] },
-  { name: "Laticínios",  emoji: "🥛", keywords: ["leite","queijo","iogurte","manteiga","requeijão","cream cheese","creme de leite","ricota","nata","muçarela"] },
-  { name: "Hortifruti",  emoji: "🥦", keywords: ["alface","tomate","cebola","alho","batata","cenoura","abobrinha","brócolis","espinafre","limão","laranja","banana","maçã","uva","morango","mamão","manga","melão","abacate","couve","rúcula","pepino","pimentão"] },
-  { name: "Mercearia",   emoji: "🛒", keywords: ["arroz","feijão","macarrão","óleo","azeite","açúcar","sal","vinagre","molho","extrato","enlatado","conserva","lentilha","grão","aveia","granola","tempero","caldo"] },
-  { name: "Bebidas",     emoji: "🥤", keywords: ["água","suco","refrigerante","cerveja","vinho","café","chá","achocolatado","isotônico","energético","kombucha","leite de coco"] },
-  { name: "Limpeza",     emoji: "🧹", keywords: ["detergente","sabão","desinfetante","limpador","amaciante","alvejante","esponja","vassoura","rodo","pano","balde","luva","saco de lixo","multiuso","limpeza"] },
-  { name: "Higiene",     emoji: "🧴", keywords: ["shampoo","condicionador","sabonete","creme","desodorante","papel higiênico","absorvente","dental","fio dental","pasta","perfume","hidratante"] },
-  { name: "Jardinagem",  emoji: "🌱", keywords: ["terra","adubo","vaso","muda","semente","fertilizante","substrato","inseticida","herbicida","regador","poda"] },
-  { name: "Veículo",     emoji: "🚗", keywords: ["combustível","gasolina","etanol","óleo motor","pneu","lavagem","lubrificante","pedágio","estacionamento","freio","filtro"] },
-  { name: "Casa",        emoji: "🏠", keywords: ["lâmpada","pilha","tinta","parafuso","cola","vedante","mangueira","elétrico","hidráulico","tomada","fio","rolamento","dobradiça","cadeado","prateleira"] },
+  { name: "Padaria",     emoji: "🥖", keywords: ["pão","bolo","biscoito","farinha","massa","croissant","brioche","torta","rosca","panetone","bisnaga","torrada","broa","focaccia","pão de queijo","sonho","coxinha","brevidade","sequilho","cucas","muffin","waffle","baguete"] },
+  { name: "Carnes",      emoji: "🥩", keywords: ["carne","frango","peixe","linguiça","salsicha","bacon","presunto","picanha","alcatra","costela","bisteca","salmão","atum","camarão","tilápia","pernil","contrafilé","filé","fraldinha","maminha","músculo","acém","patinho","sobrecoxa","peito de frango","coxa","coxinha da asa","merluza","linguado","porco","cordeiro","lula","polvo","mexilhão","sardinha","anchova","truta","robalo","garoupinha","lagostim","mortadela","apresuntado"] },
+  { name: "Laticínios",  emoji: "🥛", keywords: ["leite","queijo","iogurte","manteiga","requeijão","cream cheese","creme de leite","ricota","nata","muçarela","ovo","ovos","ghee","kefir","catupiry","coalhada","grana","parmesão","gruyère","brie","camembert","cottage","queijo coalho"] },
+  { name: "Hortifruti",  emoji: "🥦", keywords: ["alface","tomate","cebola","alho","batata","cenoura","abobrinha","brócolis","espinafre","limão","laranja","banana","maçã","uva","morango","mamão","manga","melão","abacate","couve","rúcula","pepino","pimentão","coentro","salsinha","cebolinha","beterraba","inhame","chuchu","quiabo","berinjela","vagem","abóbora","mandioca","macaxeira","gengibre","alho-poró","broto","kiwi","maracujá","goiaba","framboesa","mirtilo","nectarina","pêssego","pera","ameixa","figo","caju","acerola","pitanga","jiló","acelga","agrião","manjericão","alecrim","tomilho","hortelã","endívia","aipo"] },
+  { name: "Mercearia",   emoji: "🛒", keywords: ["arroz","feijão","macarrão","óleo","azeite","açúcar","sal","vinagre","molho","extrato","enlatado","conserva","lentilha","grão","aveia","granola","tempero","caldo","farinha","fubá","maizena","tapioca","shoyu","ketchup","mostarda","pimenta","canela","colorau","fermento","polvilho","amido","mel","geleia","pasta de amendoim","amendoim","castanha","nozes","amêndoa","passas","coco ralado","leite condensado","chocolate em pó","fermento em pó","bicarbonato","orégano","curry","açafrão","noz-moscada","páprica","erva-mate","achocolatado","cereal","granola","quinoa","linhaça","chia","proteína"] },
+  { name: "Bebidas",     emoji: "🥤", keywords: ["água","suco","refrigerante","cerveja","vinho","café","chá","achocolatado","isotônico","energético","kombucha","leite de coco","água de coco","vodka","whisky","gin","espumante","prosecco","licor","rum","cachaça","tônica","limonada","néctar","smoothie","coquetel","dose","garrafa"] },
+  { name: "Congelados",  emoji: "🧊", keywords: ["sorvete","empanado","nugget","hambúrguer","pizza congelada","lasanha congelada","congelado","milho congelado","ervilha congelada","espinafre congelado","camarão congelado","açaí","polpa","paleta","picolé","gelato","sorbete"] },
+  { name: "Limpeza",     emoji: "🧹", keywords: ["detergente","sabão","desinfetante","limpador","amaciante","alvejante","esponja","vassoura","rodo","pano","balde","luva","saco de lixo","multiuso","limpeza","água sanitária","cera","tira-manchas","limpa-vidro","palha de aço","flanela","desentupidor","limpa-forno","desincrustante","odorizador","pedra sanitária","spray"] },
+  { name: "Higiene",     emoji: "🧴", keywords: ["shampoo","condicionador","sabonete","creme","desodorante","papel higiênico","absorvente","dental","fio dental","pasta","perfume","hidratante","esmalte","removedor","repelente","protetor solar","hastes","algodão","cotonete","barbeador","lâmina","band-aid","curativo","talco","lenço umedecido","fralda","pomada","vitamina","suplemento","colágeno","ômega","protetor"] },
+  { name: "Jardinagem",  emoji: "🌱", keywords: ["terra","adubo","vaso","muda","semente","fertilizante","substrato","inseticida","herbicida","regador","poda","composto","húmus","pedra","cascalho","bambu","jardinagem","palha","grama","suculenta","orquídea","samambaia","bonsai"] },
+  { name: "Veículo",     emoji: "🚗", keywords: ["combustível","gasolina","etanol","óleo motor","pneu","lavagem","lubrificante","pedágio","estacionamento","freio","filtro","fluido","limpador de parabrisa","autopeça","pastilha","correia","bateria automotiva","palheta"] },
+  { name: "Casa",        emoji: "🏠", keywords: ["lâmpada","pilha","tinta","parafuso","cola","vedante","mangueira","elétrico","hidráulico","tomada","fio","rolamento","dobradiça","cadeado","prateleira","vela","fechadura","silicone","borracha","fita","chumbador","prego","gesso","cimento","sifão","registro","torneira","chuveiro","vaso sanitário","interruptor","disjuntor","caixa d'água"] },
 ];
 
 function categorize(name) {
@@ -1050,7 +1048,7 @@ function categorize(name) {
 }
 
 function initCategoryChips() {
-  const todos = `<button class="cat-chip" data-cat="__all__" onclick="selectCategory('__all__')">Todos</button>`;
+  const todos = `<button class="cat-chip active" data-cat="__all__" onclick="selectCategory('__all__')">Todos</button>`;
   $("cat-chips").innerHTML = todos + CATEGORIES.map(cat =>
     `<button class="cat-chip" data-cat="${esc(cat.name)}" onclick="selectCategory('${esc(cat.name)}')">${cat.emoji} ${esc(cat.name)}</button>`
   ).join("");
@@ -1120,8 +1118,12 @@ $("price-search").addEventListener("input", e => {
   if (q.trim()) {
     currentCategory = "";
     document.querySelectorAll(".cat-chip").forEach(b => b.classList.remove("active"));
+    renderPrices(q);
+  } else {
+    currentCategory = "__all__";
+    document.querySelectorAll(".cat-chip").forEach(b => b.classList.toggle("active", b.dataset.cat === "__all__"));
+    renderAllPrices();
   }
-  renderPrices(q);
 });
 
 async function renderPrices(query) {
