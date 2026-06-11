@@ -20,9 +20,9 @@ RECEIPTS_HEADERS    = ["expense_id"]  # demais colunas: pedaços base64 da foto
 
 _REIMB_DONE_COL = EXPENSES_HEADERS.index("reimb_done") + 1  # 1-indexed = 10
 
-# Célula do Sheets aceita até 50k chars; foto 1280px (~150-300KB) vira 4-9 pedaços
+# Célula do Sheets aceita até 50k chars; foto 2000px (~250-450KB) vira 8-14 pedaços
 _RECEIPT_CHUNK = 45_000
-_RECEIPT_COLS  = 16
+_RECEIPT_COLS  = 24
 
 
 @functools.lru_cache(maxsize=1)
@@ -104,8 +104,17 @@ class SheetsDB:
             self._items_ws.resize(rows=1000, cols=col)
             self._items_ws.update_cell(1, col, "total_price")
 
+        if self._receipts_ws.col_count < _RECEIPT_COLS:
+            self._receipts_ws.resize(cols=_RECEIPT_COLS)
+
     def append_expense(self, data: dict, photo_b64: str = "") -> str:
         expense_id = str(uuid.uuid4())
+        chunks = [photo_b64[i:i + _RECEIPT_CHUNK]
+                  for i in range(0, len(photo_b64), _RECEIPT_CHUNK)] if photo_b64 else []
+        if len(chunks) > _RECEIPT_COLS - 1:
+            print(f"[Receipts] Foto grande demais ({len(photo_b64)} chars) — salva sem foto.", flush=True)
+            chunks = []
+
         row = [
             expense_id,
             data.get("store", ""),
@@ -117,13 +126,11 @@ class SheetsDB:
             _now(),
             "true" if data.get("reimbursable") else "false",
             "false",
-            expense_id if photo_b64 else "",  # photo_file_id = chave na aba receipts
+            expense_id if chunks else "",  # photo_file_id = chave na aba receipts
         ]
         self._expenses_ws.append_row(row, value_input_option="RAW")
 
-        if photo_b64:
-            chunks = [photo_b64[i:i + _RECEIPT_CHUNK]
-                      for i in range(0, len(photo_b64), _RECEIPT_CHUNK)][:_RECEIPT_COLS - 1]
+        if chunks:
             self._receipts_ws.append_row([expense_id, *chunks], value_input_option="RAW")
 
         item_rows = [

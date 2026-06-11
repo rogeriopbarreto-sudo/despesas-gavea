@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-APP_VERSION = "2.0"
+APP_VERSION = "2.1"
 
 
 @functools.lru_cache(maxsize=1)
