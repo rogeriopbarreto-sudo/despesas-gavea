@@ -1,4 +1,5 @@
 import functools
+import html
 import json
 import os
 import threading
@@ -10,13 +11,13 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 load_dotenv()
 
-APP_VERSION = "1.9"
+APP_VERSION = "2.0"
 
 
 @functools.lru_cache(maxsize=1)
@@ -45,6 +46,25 @@ PIX_PHONE = "21-97064-2002"  # número para receber reembolso via Pix
 def _fmt_brl(value: float) -> str:
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+_TG_CHUNK = 4000  # limite do Telegram é 4096 chars por mensagem
+
+
+def _tg_send(token: str, chat_id: str, text: str, parse_mode: str | None = None):
+    payload = {"chat_id": chat_id, "text": text}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=json.dumps(payload).encode(), method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=10)
+        print(f"[Telegram] Enviado: {resp.status}", flush=True)
+    except Exception as e:
+        print(f"[Telegram] Erro: {e}", flush=True)
+
+
 def send_telegram_notification(store: str, description: str, value: float,
                                date: str, payment_method: str,
                                reimbursable: bool, items: list):
@@ -59,45 +79,35 @@ def send_telegram_notification(store: str, description: str, value: float,
     pay_str = f" · {pay_icon} {payment_method}" if payment_method else ""
 
     lines = ["🧾 <b>Nova despesa</b>",
-             f"🏪 <b>{store or 'Sem estabelecimento'}</b>"]
+             f"🏪 <b>{html.escape(store or 'Sem estabelecimento')}</b>"]
     if description and description != store:
-        lines.append(f"📝 {description}")
+        lines.append(f"📝 {html.escape(description)}")
     lines.append(f"📅 {date_fmt}{pay_str}")
     lines.append(f"<b>Total: {_fmt_brl(value)}</b>")
     if reimbursable:
         lines.append("⚠️ <b>SOLICITA REEMBOLSO</b>")
 
-    MAX_ITEMS = 5
-    shown = items[:MAX_ITEMS]
-    if shown:
+    if items:
         lines.append("")
-        for it in shown:
+        for it in items:
             price = float(it.get("total_price") or it.get("unit_price") or 0)
-            lines.append(f"• {it.get('name', '?')} — {_fmt_brl(price)}")
-        if len(items) > MAX_ITEMS:
-            lines.append(f"<i>{len(items) - MAX_ITEMS} itens a mais</i>")
+            lines.append(f"• {html.escape(str(it.get('name', '?')))} — {_fmt_brl(price)}")
 
-    body = "\n".join(lines)
-    url  = f"https://api.telegram.org/bot{token}/sendMessage"
-    data = json.dumps({"chat_id": chat_id, "text": body, "parse_mode": "HTML"}).encode()
-    req  = urllib.request.Request(url, data=data, method="POST")
-    req.add_header("Content-Type", "application/json")
-    try:
-        resp = urllib.request.urlopen(req, timeout=5)
-        print(f"[Telegram] Enviado: {resp.status}", flush=True)
-    except Exception as e:
-        print(f"[Telegram] Erro: {e}", flush=True)
+    # Sem truncar: divide em mensagens sequenciais respeitando o limite por linha
+    chunks, cur, cur_len = [], [], 0
+    for line in lines:
+        if cur and cur_len + len(line) + 1 > _TG_CHUNK:
+            chunks.append("\n".join(cur))
+            cur, cur_len = [], 0
+        cur.append(line)
+        cur_len += len(line) + 1
+    if cur:
+        chunks.append("\n".join(cur))
+    for chunk in chunks:
+        _tg_send(token, chat_id, chunk, parse_mode="HTML")
 
     if reimbursable:
-        pix_text = f"faz um pix de {_fmt_brl(value)} para {PIX_PHONE}"
-        pix_data = json.dumps({"chat_id": chat_id, "text": pix_text}).encode()
-        pix_req  = urllib.request.Request(url, data=pix_data, method="POST")
-        pix_req.add_header("Content-Type", "application/json")
-        try:
-            resp2 = urllib.request.urlopen(pix_req, timeout=5)
-            print(f"[Telegram] Pix enviado: {resp2.status}", flush=True)
-        except Exception as e:
-            print(f"[Telegram] Erro Pix: {e}", flush=True)
+        _tg_send(token, chat_id, f"faz um pix de {_fmt_brl(value)} para {PIX_PHONE}")
 
 
 def get_db():
@@ -128,6 +138,7 @@ class ExpenseIn(BaseModel):
     payment_method: str = ""
     reimbursable: bool = False
     thumb_b64: str = ""
+    photo_b64: str = ""
     items: list[ItemIn] = []
 
 
@@ -214,7 +225,8 @@ def read_receipt(req: ReadReceiptRequest):
 @app.post("/api/expenses", status_code=201)
 def create_expense(exp: ExpenseIn):
     db = get_db()
-    expense_id = db.append_expense(exp.model_dump())
+    expense_id = db.append_expense(exp.model_dump(exclude={"photo_b64"}),
+                                   photo_b64=exp.photo_b64)
     threading.Thread(
         target=send_telegram_notification,
         args=(exp.store, exp.description, exp.value,
@@ -249,39 +261,54 @@ def delete_expense(expense_id: str):
     return {"ok": True}
 
 
+@app.get("/api/receipt/{receipt_id}")
+def get_receipt(receipt_id: str):
+    db = get_db()
+    try:
+        content = db.get_receipt(receipt_id)
+    except Exception:
+        content = None
+    if not content:
+        raise HTTPException(status_code=404, detail="Foto não encontrada.")
+    return Response(content=content, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @app.get("/api/prices")
 def list_prices(q: str | None = None):
     db = get_db()
     items = db.list_price_items(q=q)
 
+    # produto+unidade → grupo; dentro do grupo, loja+data → entry única
+    # (itens iguais comprados juntos viram 1 entry com qty e preço somado)
     groups: dict[str, dict] = {}
     for item in items:
         name = str(item.get("product_name", "")).strip()
         unit = str(item.get("unit", "un"))
         key = f"{name.upper()}|{unit}"
         if key not in groups:
-            groups[key] = {"name": name, "unit": unit, "entries": []}
+            groups[key] = {"name": name, "unit": unit, "entries": {}}
         try:
-            price = float(item.get("unit_price", 0))
+            unit_price = float(item.get("unit_price") or 0)
+            line_total = float(item.get("total_price") or 0) or unit_price
         except (ValueError, TypeError):
             continue
-        groups[key]["entries"].append({
-            "store": item.get("store", ""),
-            "price": price,
-            "date": item.get("date", ""),
-        })
+        store, date = item.get("store", ""), item.get("date", "")
+        entry = groups[key]["entries"].setdefault(
+            (store, date), {"store": store, "date": date, "qty": 0, "total": 0.0})
+        entry["qty"] += 1
+        entry["total"] += line_total
 
     result = []
     for g in groups.values():
-        entries = sorted(g["entries"], key=lambda e: e["price"])
+        entries = []
+        for e in g["entries"].values():
+            e["total"] = round(e["total"], 2)
+            e["price"] = round(e["total"] / e["qty"], 2)  # preço unitário p/ comparação
+            entries.append(e)
+        entries.sort(key=lambda e: e["price"])
         result.append({"name": g["name"], "unit": g["unit"], "entries": entries})
     return result
-
-
-@app.get("/api/prices/suggestions")
-def price_suggestions():
-    db = get_db()
-    return db.price_suggestions()
 
 
 @app.get("/api/corrections")
