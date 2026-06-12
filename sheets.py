@@ -14,7 +14,7 @@ SCOPES = [
 ]
 
 EXPENSES_HEADERS    = ["id", "store", "description", "value", "date", "payment_method", "thumb_b64", "created_at", "reimbursable", "reimb_done", "photo_file_id"]
-ITEMS_HEADERS       = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price"]
+ITEMS_HEADERS       = ["id", "expense_id", "product_name", "unit_price", "unit", "store", "date", "created_at", "total_price", "canonical_name"]
 CORRECTIONS_HEADERS = ["store", "raw_text", "corrected_name", "created_at"]
 RECEIPTS_HEADERS    = ["expense_id"]  # demais colunas: pedaços base64 da foto
 
@@ -99,10 +99,12 @@ class SheetsDB:
                 exp_hdrs.append(col_name)
 
         item_hdrs = self._items_ws.row_values(1)
-        if "total_price" not in item_hdrs:
-            col = len(item_hdrs) + 1
-            self._items_ws.resize(rows=1000, cols=col)
-            self._items_ws.update_cell(1, col, "total_price")
+        for col_name in ("total_price", "canonical_name"):
+            if col_name not in item_hdrs:
+                col = len(item_hdrs) + 1
+                self._items_ws.resize(rows=1000, cols=col)
+                self._items_ws.update_cell(1, col, col_name)
+                item_hdrs.append(col_name)
 
         if self._receipts_ws.col_count < _RECEIPT_COLS:
             self._receipts_ws.resize(cols=_RECEIPT_COLS)
@@ -144,6 +146,7 @@ class SheetsDB:
                 data.get("date", ""),
                 _now(),
                 str(item.get("total_price", 0)),
+                item.get("canonical_name", ""),
             ]
             for item in data.get("items", [])
         ]
@@ -198,7 +201,11 @@ class SheetsDB:
         records = self._items_ws.get_all_records()
         if q:
             q_upper = q.upper()
-            records = [r for r in records if q_upper in str(r.get("product_name", "")).upper()]
+            records = [
+                r for r in records
+                if q_upper in str(r.get("product_name", "")).upper()
+                or q_upper in str(r.get("canonical_name", "")).upper()
+            ]
         return records
 
     def get_corrections(self, store: str) -> list[dict]:

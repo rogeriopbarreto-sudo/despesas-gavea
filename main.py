@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-APP_VERSION = "2.1"
+APP_VERSION = "2.2"
 
 
 @functools.lru_cache(maxsize=1)
@@ -125,6 +125,7 @@ class ReadReceiptRequest(BaseModel):
 
 class ItemIn(BaseModel):
     name: str
+    canonical_name: str = ""
     unit_price: float
     total_price: float = 0
     unit: str = "un"
@@ -179,10 +180,16 @@ def read_receipt(req: ReadReceiptRequest):
         "Responda APENAS com um objeto JSON, sem texto antes/depois, sem markdown.\n"
         'Formato exato:\n{"store":"<nome curto e padronizado>","value":<total pago, ponto decimal>,'
         '"date":"<AAAA-MM-DD>","payment_method":"<ver regras>","items":[{"name":"<produto>",'
-        '"unit":"<un ou kg>","unit_price":<VL.UNIT>,"total_price":<VL.TOTAL>}]}\n\n'
+        '"canonical_name":"<produto genérico>","unit":"<un, kg ou L>",'
+        '"unit_price":<VL.UNIT>,"total_price":<VL.TOTAL>}]}\n\n'
         "store: nome comercial + bairro/filial curto. Ex: 'Zona Sul - Leblon'.\n"
         "value: VALOR A PAGAR após descontos.\n"
-        "items: unit_price = PREÇO UNITÁRIO (VL.UNIT); total_price = TOTAL DA LINHA (VL.TOTAL). unit=kg se vendido por peso.\n"
+        "items: unit_price = PREÇO UNITÁRIO (VL.UNIT); total_price = TOTAL DA LINHA (VL.TOTAL).\n"
+        "unit: kg se vendido por peso; L se vendido por litro (combustível, líquidos a granel); senão un.\n"
+        "canonical_name: nome genérico do produto para agrupar compras iguais de lojas diferentes — "
+        "sem marca, embalagem ou abreviação. Ex: 'Queijo Prato Pre Fat' → 'Queijo Prato'; "
+        "'Gasolina Aditivada Shell' → 'Gasolina Comum' apenas se for comum, senão 'Gasolina Aditivada'; "
+        "'Leite Int Italac 1L' → 'Leite Integral'.\n"
         "payment_method — somente 3 casos, senão vazio:\n"
         "  crédito/credit → 'Cartão de Crédito'\n"
         "  vale/voucher/débito → 'Vale Alimentação'\n"
@@ -279,15 +286,16 @@ def list_prices(q: str | None = None):
     db = get_db()
     items = db.list_price_items(q=q)
 
-    # produto+unidade → grupo; dentro do grupo, loja+data → entry única
-    # (itens iguais comprados juntos viram 1 entry com qty e preço somado)
+    # canônico+unidade → grupo; dentro do grupo, descrição+loja+data → entry única
+    # (itens idênticos comprados juntos viram 1 entry com quantidade somada)
     groups: dict[str, dict] = {}
     for item in items:
-        name = str(item.get("product_name", "")).strip()
-        unit = str(item.get("unit", "un"))
-        key = f"{name.upper()}|{unit}"
+        desc = str(item.get("product_name", "")).strip()
+        canonical = str(item.get("canonical_name", "")).strip() or desc
+        unit = str(item.get("unit", "un")).strip() or "un"
+        key = f"{canonical.upper()}|{unit}"
         if key not in groups:
-            groups[key] = {"name": name, "unit": unit, "entries": {}}
+            groups[key] = {"name": canonical, "unit": unit, "entries": {}}
         try:
             unit_price = float(item.get("unit_price") or 0)
             line_total = float(item.get("total_price") or 0) or unit_price
@@ -295,8 +303,13 @@ def list_prices(q: str | None = None):
             continue
         store, date = item.get("store", ""), item.get("date", "")
         entry = groups[key]["entries"].setdefault(
-            (store, date), {"store": store, "date": date, "qty": 0, "total": 0.0})
-        entry["qty"] += 1
+            (desc.upper(), store, date),
+            {"desc": desc, "store": store, "date": date, "qty": 0.0, "total": 0.0})
+        # qty em unidades p/ "un"; em peso/volume (total ÷ preço unitário) p/ kg e L
+        if unit in ("kg", "L") and unit_price > 0:
+            entry["qty"] += line_total / unit_price
+        else:
+            entry["qty"] += 1
         entry["total"] += line_total
 
     result = []
@@ -304,9 +317,11 @@ def list_prices(q: str | None = None):
         entries = []
         for e in g["entries"].values():
             e["total"] = round(e["total"], 2)
-            e["price"] = round(e["total"] / e["qty"], 2)  # preço unitário p/ comparação
+            qty = e["qty"] or 1
+            e["qty"] = round(qty, 3)
+            e["price"] = round(e["total"] / qty, 2)  # preço por un/kg/L p/ comparação
             entries.append(e)
-        entries.sort(key=lambda e: e["price"])
+        entries.sort(key=lambda e: e["date"], reverse=True)  # mais recente primeiro
         result.append({"name": g["name"], "unit": g["unit"], "entries": entries})
     return result
 
