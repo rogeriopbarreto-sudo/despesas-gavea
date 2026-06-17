@@ -95,15 +95,6 @@ body {
 .scroll-area { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 0 18px calc(var(--nav-h) + var(--safe-bottom) + 28px); }
 .inner { max-width: 760px; margin: 0 auto; }
 
-/* ── Stats editorial — 2 colunas ── */
-.stats { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1.5px solid var(--ink); }
-.stat { padding: 16px 4px 14px; }
-.stat:first-child { border-right: 1px solid var(--line); padding-right: 16px; }
-.stat:last-child { padding-left: 16px; }
-.stat .s-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(24px, 6.6vw, 36px); font-variant-numeric: tabular-nums; line-height: 1; }
-.stat .s-val.gr { color: var(--green); }
-.stat .s-lbl { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; margin-top: 7px; }
-
 /* ── Section head ── */
 .sec-head { display: flex; justify-content: space-between; align-items: baseline; padding: 26px 0 8px; }
 .sec-head h2 { font-family: 'Fraunces', serif; font-style: italic; font-weight: 400; font-size: 22px; }
@@ -160,10 +151,18 @@ body {
 .act-btn.danger { color: var(--red); border-color: #ecc7c0; }
 .act-btn.ok { color: var(--green); border-color: var(--green); }
 
-/* ── Total geral ── */
-.grand { display: flex; justify-content: space-between; align-items: baseline; padding: 20px 0; border-bottom: 1.5px solid var(--ink); }
-.grand .g-lbl { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
-.grand .g-val { font-family: 'Fraunces', serif; font-weight: 700; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; }
+/* ── Carregar mais ── */
+.load-more { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 24px 0 10px; }
+.load-more-btn {
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 16px; color: var(--ink);
+  background: var(--paper); border: 1.5px solid var(--ink); border-radius: 100px;
+  padding: 12px 26px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+  transition: background .15s, color .15s;
+}
+.load-more-btn:hover { background: var(--ink); color: var(--cream); }
+.load-more-btn .chev { font-size: 17px; line-height: 1; transition: transform .2s; }
+.load-more-btn:hover .chev { transform: translateY(2px); }
+.load-more-count { font-size: 11px; letter-spacing: .05em; color: var(--ink-soft); }
 
 .empty { text-align: center; color: var(--ink-soft); padding: 48px 20px; }
 .empty .big { font-size: 38px; margin-bottom: 8px; }
@@ -414,11 +413,6 @@ input:checked + .t-slider:before { transform: translateX(20px); }
 
   <div class="scroll-area">
     <div class="inner">
-      <section class="stats">
-        <div class="stat"><div class="s-val gr" id="tot-month">R$ 0,00</div><div class="s-lbl">Este mês</div></div>
-        <div class="stat"><div class="s-val" id="avg-note">R$ 0,00</div><div class="s-lbl">Média por nota</div></div>
-      </section>
-
       <div class="sec-head">
         <h2 id="sec-month">despesas</h2>
         <span class="idx" id="sec-count"></span>
@@ -426,10 +420,7 @@ input:checked + .t-slider:before { transform: translateX(20px); }
 
       <div class="ledger" id="exp-list"></div>
 
-      <div class="grand" id="total-footer" style="display:none">
-        <span class="g-lbl">Total registrado</span>
-        <span class="g-val" id="tot-all">R$ 0,00</span>
-      </div>
+      <div id="load-more-wrap"></div>
     </div>
   </div>
 </div>
@@ -589,7 +580,9 @@ let autoResolved = [];
 let currentPriceQuery = "";
 let currentCategory = "__all__";
 let priceCache = null;      // grupos de /api/prices — 1 fetch por sessão
-let countedMonth = false;   // contador animado roda 1x
+const PAGE = 10;            // notas carregadas por vez
+let visibleCount = PAGE;    // quantas notas estão visíveis na lista
+let animPrev = 0;           // nº de linhas já animadas — anima só as novas
 
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const G = (!REDUCED && window.gsap) ? window.gsap : null;
@@ -968,14 +961,8 @@ async function loadExpenses() {
     const res = await fetch("/api/expenses");
     expenses = res.ok ? await res.json() : [];
   } catch { expenses=[]; }
+  visibleCount = PAGE; animPrev = 0;
   renderExpenses();
-}
-
-function animMoney(el, target) {
-  if (!G) { el.textContent = fmtBRL(target); return; }
-  const o = { v: 0 };
-  G.to(o, { v: target, duration: 1.4, ease: "power2.out",
-            onUpdate: () => el.textContent = fmtBRL(o.v) });
 }
 
 function renderExpenses() {
@@ -986,20 +973,6 @@ function renderExpenses() {
   sel.value=months.includes(prev)||prev==="all"?prev:"all";
 
   const shown = sel.value==="all" ? expenses : expenses.filter(e=>monthKey(e.date||"")===sel.value);
-  const thisMonth = new Date().toISOString().slice(0,7);
-  const monthExp = expenses.filter(e=>monthKey(e.date||"")===thisMonth);
-  const monthTotal = monthExp.reduce((s,e)=>s+Number(e.value||0),0);
-  const avg = monthExp.length ? monthTotal/monthExp.length : 0;
-
-  if (!countedMonth) {
-    animMoney($("tot-month"), monthTotal);
-    animMoney($("avg-note"), avg);
-    countedMonth = true;
-  } else {
-    $("tot-month").textContent = fmtBRL(monthTotal);
-    $("avg-note").textContent = fmtBRL(avg);
-  }
-  $("tot-all").textContent = fmtBRL(expenses.reduce((s,e)=>s+Number(e.value||0),0));
   $("sec-month").textContent = sel.value==="all" ? "todas as despesas" : monthLabel(sel.value);
   $("sec-count").textContent = shown.length ? `${String(shown.length).padStart(2,"0")} registro${shown.length>1?"s":""}` : "";
 
@@ -1007,21 +980,22 @@ function renderExpenses() {
   $("store-list").innerHTML=stores.map(s=>`<option value="${esc(s)}">`).join("");
 
   const list=$("exp-list");
-  const footer=$("total-footer");
+  const lmw=$("load-more-wrap");
 
   if (!shown.length) {
     list.innerHTML='<div class="empty"><div class="big">🧾</div><p>Nenhuma despesa registrada ainda.<br>Toque na câmera para adicionar.</p></div>';
-    footer.style.display="none";
+    lmw.innerHTML="";
     return;
   }
 
+  const page = shown.slice(0, visibleCount);
   const pillClass = m => m==="Cartão de Crédito" ? "card" : (m==="Pix" ? "pix" : "va");
   const pillLabel = m => m==="Cartão de Crédito" ? "Cartão" : (m==="Vale Alimentação" ? "Vale" : m);
 
-  list.innerHTML = shown.map(e => {
+  list.innerHTML = page.map(e => {
     const items = Array.isArray(e.items) ? e.items : [];
     const hasItems = items.length > 0;
-    const hasPhoto = Boolean(e.photo_file_id || e.thumb_b64);
+    const hasPhoto = Boolean(e.photo_file_id || e.has_thumb);
     const isReimb = String(e.reimbursable).toLowerCase() === "true";
     const isReimbDone = String(e.reimb_done).toLowerCase() === "true";
     const meta = [e.store, hasItems ? `${items.length} ite${items.length>1?"ns":"m"}` : ""].filter(Boolean).join(" · ");
@@ -1064,10 +1038,23 @@ function renderExpenses() {
     </div>`;
   }).join("");
 
-  footer.style.display = "flex";
-  if (G) G.from("#exp-list .row-main", { opacity: 0, y: 14, duration: .45, stagger: .035, ease: "power2.out", clearProps: "all" });
+  const renderedCount = page.length;
+  const remaining = shown.length - renderedCount;
+  lmw.innerHTML = remaining > 0
+    ? `<div class="load-more">
+         <button class="load-more-btn" onclick="loadMore()">Carregar mais <span class="chev">↓</span></button>
+         <div class="load-more-count">Mostrando ${renderedCount} de ${shown.length}</div>
+       </div>`
+    : "";
+
+  if (G) {
+    const newRows = [...list.querySelectorAll(".row-main")].slice(animPrev);
+    if (newRows.length) G.from(newRows, { opacity: 0, y: 14, duration: .45, stagger: .035, ease: "power2.out", clearProps: "all" });
+  }
+  animPrev = renderedCount;
 }
-$("month-filter").addEventListener("change", renderExpenses);
+function loadMore() { visibleCount += PAGE; renderExpenses(); }
+$("month-filter").addEventListener("change", () => { visibleCount = PAGE; animPrev = 0; renderExpenses(); });
 
 async function delExpense(id) {
   if (!confirm("Apagar esta despesa?")) return;
@@ -1339,15 +1326,19 @@ function showLB(id) {
   if (!e) return;
   const img = $("lb-img"), cap = $("lb-cap");
   resetLbZoom();
-  img.src = e.thumb_b64 || "";
   $("lightbox").classList.add("on");
   if (e.photo_file_id) {
+    img.src = e.has_thumb ? `/api/thumb/${encodeURIComponent(e.id)}` : "";
     cap.style.display = "block";
     const hi = new Image();
     hi.onload = () => { img.src = hi.src; cap.style.display = "none"; };
     hi.onerror = () => { cap.style.display = "none"; };
     hi.src = `/api/receipt/${encodeURIComponent(e.photo_file_id)}`;
+  } else if (e.has_thumb) {
+    img.src = `/api/thumb/${encodeURIComponent(e.id)}`;
+    cap.style.display = "none";
   } else {
+    img.src = "";
     cap.style.display = "none";
   }
 }
@@ -1362,7 +1353,6 @@ fetch("/api/version").then(r=>r.ok?r.json():null).then(d=>{
 }).catch(()=>{});
 if (G) {
   G.from(".topbar-content > *", { opacity: 0, y: 16, duration: .8, stagger: .1, ease: "power3.out" });
-  G.from(".stats .stat", { opacity: 0, y: 18, duration: .7, stagger: .12, delay: .25, ease: "power3.out" });
 }
 </script>
 </body>

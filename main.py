@@ -1,3 +1,4 @@
+import base64
 import functools
 import html
 import json
@@ -17,7 +18,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-APP_VERSION = "2.2"
+APP_VERSION = "2.3"
 
 
 @functools.lru_cache(maxsize=1)
@@ -266,6 +267,22 @@ def delete_expense(expense_id: str):
     if not found:
         raise HTTPException(status_code=404, detail="Despesa não encontrada.")
     return {"ok": True}
+
+
+@app.get("/api/thumb/{expense_id}")
+def get_thumb(expense_id: str):
+    db = get_db()
+    thumb = db.get_thumb(expense_id)
+    if not thumb:
+        raise HTTPException(status_code=404, detail="Miniatura não encontrada.")
+    if "," in thumb:  # data URL: "data:image/jpeg;base64,XXXX"
+        thumb = thumb.split(",", 1)[1]
+    try:
+        content = base64.b64decode(thumb)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Miniatura inválida.")
+    return Response(content=content, media_type="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/api/receipt/{receipt_id}")

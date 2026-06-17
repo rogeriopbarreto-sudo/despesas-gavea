@@ -173,8 +173,19 @@ class SheetsDB:
             })
         for r in records:
             r["items"] = items_map.get(str(r.get("id", "")), [])
+            # A miniatura (base64) não vai na lista — pesa demais. Só sinalizamos
+            # que existe; o cliente busca em /api/thumb/{id} ao abrir a nota.
+            r["has_thumb"] = bool(str(r.get("thumb_b64", "")).strip())
+            r.pop("thumb_b64", None)
 
         return records
+
+    def get_thumb(self, expense_id: str) -> str:
+        cell = self._expenses_ws.find(expense_id, in_column=1)
+        if not cell:
+            return ""
+        thumb_col = EXPENSES_HEADERS.index("thumb_b64") + 1
+        return self._expenses_ws.cell(cell.row, thumb_col).value or ""
 
     def delete_expense(self, expense_id: str) -> bool:
         cell = self._expenses_ws.find(expense_id, in_column=1)
