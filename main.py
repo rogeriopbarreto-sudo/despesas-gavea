@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 load_dotenv()
 
-APP_VERSION = "2.3"
+APP_VERSION = "2.4"
 
 
 @functools.lru_cache(maxsize=1)
@@ -321,7 +321,9 @@ def list_prices(q: str | None = None):
         store, date = item.get("store", ""), item.get("date", "")
         entry = groups[key]["entries"].setdefault(
             (desc.upper(), store, date),
-            {"desc": desc, "store": store, "date": date, "qty": 0.0, "total": 0.0})
+            {"desc": desc, "store": store, "date": date, "qty": 0.0, "total": 0.0, "expense_id": ""})
+        if not entry["expense_id"]:  # vínculo p/ abrir a nota — só o id, sem imagem
+            entry["expense_id"] = str(item.get("expense_id", "") or "")
         # qty em unidades p/ "un"; em peso/volume (total ÷ preço unitário) p/ kg e L
         if unit in ("kg", "L") and unit_price > 0:
             entry["qty"] += line_total / unit_price
