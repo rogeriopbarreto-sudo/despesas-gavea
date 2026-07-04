@@ -1,37 +1,31 @@
-import base64
-import functools
-import html
+import hashlib
+import hmac
 import json
 import os
 import threading
-import urllib.request
 from contextlib import asynccontextmanager
 from datetime import date as _date
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+import auditor
+import dash
+import db
+from notify import get_anthropic, send_expense_notification
+
 load_dotenv()
 
-APP_VERSION = "2.4"
-
-
-@functools.lru_cache(maxsize=1)
-def _get_anthropic() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+APP_VERSION = "3.0"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from sheets import SheetsDB, _get_client
-    _get_client()  # warm up auth + spreadsheet cache on startup
-    db = SheetsDB()
-    db.migrate()
+    db.init_schema()
     yield
 
 
@@ -40,80 +34,54 @@ app = FastAPI(title="Despesas Gávea", lifespan=lifespan)
 STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# ── Telegram notification ─────────────────────────────────────────────────────
+# ── Auth: PIN one-time por aparelho, token HMAC por escopo ───────────────────
 
-PIX_PHONE = "21-97064-2002"  # número para receber reembolso via Pix
-
-def _fmt_brl(value: float) -> str:
-    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-_TG_CHUNK = 4000  # limite do Telegram é 4096 chars por mensagem
+_PIN_ENVS = {"main": "ACCESS_PIN_MAIN", "obra": "ACCESS_PIN_OBRA", "dash": "ACCESS_PIN_DASH"}
 
 
-def _tg_send(token: str, chat_id: str, text: str, parse_mode: str | None = None):
-    payload = {"chat_id": chat_id, "text": text}
-    if parse_mode:
-        payload["parse_mode"] = parse_mode
-    req = urllib.request.Request(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        data=json.dumps(payload).encode(), method="POST",
-        headers={"Content-Type": "application/json"},
-    )
-    try:
-        resp = urllib.request.urlopen(req, timeout=10)
-        print(f"[Telegram] Enviado: {resp.status}", flush=True)
-    except Exception as e:
-        print(f"[Telegram] Erro: {e}", flush=True)
+def _scope_token(scope: str) -> str:
+    secret = os.environ.get("SECRET_KEY", "dev-secret")
+    return hmac.new(secret.encode(), f"ws:{scope}".encode(), hashlib.sha256).hexdigest()
 
 
-def send_telegram_notification(store: str, description: str, value: float,
-                               date: str, payment_method: str,
-                               reimbursable: bool, items: list):
-    token   = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not all([token, chat_id]):
-        print("[Telegram] Credenciais ausentes — notificação ignorada.", flush=True)
+def _pin_for(scope: str) -> str:
+    return os.environ.get(_PIN_ENVS[scope], "")
+
+
+def _require(scope: str, x_auth: str | None):
+    """Valida o token do escopo. Casa e obra são isoladas entre si (um funcionário
+    não vê o ambiente do outro), MAS o token do dono (dash) abre casa e obra —
+    é ele que alterna Casa|Obra e vê tudo. Sem PIN no ambiente, o escopo fica aberto."""
+    if not _pin_for(scope):
         return
-
-    date_fmt = "/".join(reversed(date.split("-"))) if date else ""
-    pay_icon = {"Cartão de Crédito": "💳", "Vale Alimentação": "🍽️", "Pix": "📱"}.get(payment_method, "")
-    pay_str = f" · {pay_icon} {payment_method}" if payment_method else ""
-
-    lines = ["🧾 <b>Nova despesa</b>",
-             f"🏪 <b>{html.escape(store or 'Sem estabelecimento')}</b>"]
-    if description and description != store:
-        lines.append(f"📝 {html.escape(description)}")
-    lines.append(f"📅 {date_fmt}{pay_str}")
-    lines.append(f"<b>Total: {_fmt_brl(value)}</b>")
-    if reimbursable:
-        lines.append("⚠️ <b>SOLICITA REEMBOLSO</b>")
-
-    if items:
-        lines.append("")
-        for it in items:
-            price = float(it.get("total_price") or it.get("unit_price") or 0)
-            lines.append(f"• {html.escape(str(it.get('name', '?')))} — {_fmt_brl(price)}")
-
-    # Sem truncar: divide em mensagens sequenciais respeitando o limite por linha
-    chunks, cur, cur_len = [], [], 0
-    for line in lines:
-        if cur and cur_len + len(line) + 1 > _TG_CHUNK:
-            chunks.append("\n".join(cur))
-            cur, cur_len = [], 0
-        cur.append(line)
-        cur_len += len(line) + 1
-    if cur:
-        chunks.append("\n".join(cur))
-    for chunk in chunks:
-        _tg_send(token, chat_id, chunk, parse_mode="HTML")
-
-    if reimbursable:
-        _tg_send(token, chat_id, f"faz um pix de {_fmt_brl(value)} para {PIX_PHONE}")
+    valid = [_scope_token(scope)]
+    if scope in ("main", "obra"):
+        valid.append(_scope_token("dash"))
+    if not x_auth or not any(hmac.compare_digest(x_auth, t) for t in valid):
+        raise HTTPException(status_code=401, detail="Não autorizado.")
 
 
-def get_db():
-    from sheets import SheetsDB
-    return SheetsDB()
+def _ws(ws: str) -> str:
+    if ws not in db.WORKSPACES:
+        raise HTTPException(status_code=400, detail="Workspace inválido.")
+    return ws
+
+
+class AuthIn(BaseModel):
+    pin: str
+    scope: str
+
+
+@app.post("/api/auth")
+def auth(body: AuthIn):
+    if body.scope not in _PIN_ENVS:
+        raise HTTPException(status_code=400, detail="Escopo inválido.")
+    pin = _pin_for(body.scope)
+    if not pin:
+        return {"token": _scope_token(body.scope)}
+    if not hmac.compare_digest(body.pin.strip(), pin):
+        raise HTTPException(status_code=401, detail="PIN incorreto.")
+    return {"token": _scope_token(body.scope)}
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -150,12 +118,21 @@ class CorrectionIn(BaseModel):
     corrected_name: str
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────
+# ── Páginas ──────────────────────────────────────────────────────────────────
+
+def _page(workspace: str) -> HTMLResponse:
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(content=html.replace("__WORKSPACE__", workspace))
+
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(content=html)
+    return _page("main")
+
+
+@app.get("/obra", response_class=HTMLResponse)
+def obra():
+    return _page("obra")
 
 
 @app.get("/api/version")
@@ -166,18 +143,22 @@ def version():
 @app.get("/api/health")
 def health():
     try:
-        from sheets import _get_client
-        _get_client()  # reuses cached client; verifies credentials are loadable
-        return {"status": "ok", "sheets": "connected"}
+        db.init_schema()
+        return {"status": "ok", "db": "connected"}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Auth error: {e}")
+        raise HTTPException(status_code=503, detail=f"DB error: {e}")
 
+
+# ── Leitura de nota (IA) ─────────────────────────────────────────────────────
 
 @app.post("/api/read-receipt")
-def read_receipt(req: ReadReceiptRequest):
+def read_receipt(req: ReadReceiptRequest, ws: str = Query("main"),
+                 x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
     today = _date.today().isoformat()
     prompt = (
-        "Você está lendo a foto de um cupom fiscal de supermercado ou recibo brasileiro.\n"
+        "Você está lendo a foto de um cupom fiscal de supermercado, loja de material "
+        "de construção ou recibo brasileiro.\n"
         "Responda APENAS com um objeto JSON, sem texto antes/depois, sem markdown.\n"
         'Formato exato:\n{"store":"<nome curto e padronizado>","value":<total pago, ponto decimal>,'
         '"date":"<AAAA-MM-DD>","payment_method":"<ver regras>","items":[{"name":"<produto>",'
@@ -190,7 +171,7 @@ def read_receipt(req: ReadReceiptRequest):
         "canonical_name: nome genérico do produto para agrupar compras iguais de lojas diferentes — "
         "sem marca, embalagem ou abreviação. Ex: 'Queijo Prato Pre Fat' → 'Queijo Prato'; "
         "'Gasolina Aditivada Shell' → 'Gasolina Comum' apenas se for comum, senão 'Gasolina Aditivada'; "
-        "'Leite Int Italac 1L' → 'Leite Integral'.\n"
+        "'Leite Int Italac 1L' → 'Leite Integral'; 'Cimento CP II 50kg Votoran' → 'Cimento'.\n"
         "payment_method — somente 3 casos, senão vazio:\n"
         "  crédito/credit → 'Cartão de Crédito'\n"
         "  vale/voucher/débito → 'Vale Alimentação'\n"
@@ -203,7 +184,7 @@ def read_receipt(req: ReadReceiptRequest):
     if req.brief_desc:
         prompt += f' A pessoa descreveu como: "{req.brief_desc}".'
 
-    message = _get_anthropic().messages.create(
+    message = get_anthropic().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1500,
         messages=[{
@@ -230,78 +211,81 @@ def read_receipt(req: ReadReceiptRequest):
         raise HTTPException(status_code=422, detail="Não consegui interpretar a resposta da IA.")
 
 
+# ── Despesas ─────────────────────────────────────────────────────────────────
+
 @app.post("/api/expenses", status_code=201)
-def create_expense(exp: ExpenseIn):
-    db = get_db()
-    expense_id = db.append_expense(exp.model_dump(exclude={"photo_b64"}),
-                                   photo_b64=exp.photo_b64)
+def create_expense(exp: ExpenseIn, ws: str = Query("main"),
+                   x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
+    data = exp.model_dump(exclude={"photo_b64"})
+    expense_id = db.append_expense(data, photo_b64=exp.photo_b64, workspace=ws)
+    items = [i.model_dump() for i in exp.items]
     threading.Thread(
-        target=send_telegram_notification,
-        args=(exp.store, exp.description, exp.value,
-              exp.date, exp.payment_method, exp.reimbursable,
-              [i.model_dump() for i in exp.items]),
+        target=send_expense_notification,
+        args=(exp.store, exp.description, exp.value, exp.date,
+              exp.payment_method, exp.reimbursable, items, ws),
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=auditor.run_audit, args=(expense_id, data, items, ws),
         daemon=True,
     ).start()
     return {"id": expense_id}
 
 
 @app.get("/api/expenses")
-def list_expenses(month: str | None = None):
-    db = get_db()
-    return db.list_expenses(month=month)
+def list_expenses(month: str | None = None, ws: str = Query("main"),
+                  x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
+    return db.list_expenses(workspace=ws, month=month)
 
 
 @app.patch("/api/expenses/{expense_id}/reimb-done", status_code=200)
-def mark_reimb_done(expense_id: str):
-    db = get_db()
-    found = db.mark_reimb_done(expense_id)
-    if not found:
+def mark_reimb_done(expense_id: str, ws: str = Query("main"),
+                    x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
+    if not db.mark_reimb_done(expense_id):
         raise HTTPException(status_code=404, detail="Despesa não encontrada.")
     return {"ok": True}
 
 
 @app.delete("/api/expenses/{expense_id}")
-def delete_expense(expense_id: str):
-    db = get_db()
-    found = db.delete_expense(expense_id)
-    if not found:
+def delete_expense(expense_id: str, ws: str = Query("main"),
+                   x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
+    if not db.delete_expense(expense_id):
         raise HTTPException(status_code=404, detail="Despesa não encontrada.")
     return {"ok": True}
 
 
+# Miniatura e foto ficam sem header de auth: são carregadas via <img src> e o id
+# uuid é a capability (não enumerável).
+
 @app.get("/api/thumb/{expense_id}")
 def get_thumb(expense_id: str):
-    db = get_db()
     thumb = db.get_thumb(expense_id)
     if not thumb:
         raise HTTPException(status_code=404, detail="Miniatura não encontrada.")
-    if "," in thumb:  # data URL: "data:image/jpeg;base64,XXXX"
-        thumb = thumb.split(",", 1)[1]
-    try:
-        content = base64.b64decode(thumb)
-    except Exception:
-        raise HTTPException(status_code=404, detail="Miniatura inválida.")
-    return Response(content=content, media_type="image/jpeg",
+    return Response(content=thumb, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/api/receipt/{receipt_id}")
 def get_receipt(receipt_id: str):
-    db = get_db()
-    try:
-        content = db.get_receipt(receipt_id)
-    except Exception:
-        content = None
+    content = db.get_receipt(receipt_id)
     if not content:
         raise HTTPException(status_code=404, detail="Foto não encontrada.")
     return Response(content=content, media_type="image/jpeg",
                     headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
+# ── Preços ───────────────────────────────────────────────────────────────────
+
 @app.get("/api/prices")
-def list_prices(q: str | None = None):
-    db = get_db()
-    items = db.list_price_items(q=q)
+def list_prices(q: str | None = None, ws: str = Query("main"),
+                x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
+    items = db.list_price_items(workspace=ws, q=q)
 
     # canônico+unidade → grupo; dentro do grupo, descrição+loja+data → entry única
     # (itens idênticos comprados juntos viram 1 entry com quantidade somada)
@@ -313,11 +297,8 @@ def list_prices(q: str | None = None):
         key = f"{canonical.upper()}|{unit}"
         if key not in groups:
             groups[key] = {"name": canonical, "unit": unit, "entries": {}}
-        try:
-            unit_price = float(item.get("unit_price") or 0)
-            line_total = float(item.get("total_price") or 0) or unit_price
-        except (ValueError, TypeError):
-            continue
+        unit_price = float(item.get("unit_price") or 0)
+        line_total = float(item.get("total_price") or 0) or unit_price
         store, date = item.get("store", ""), item.get("date", "")
         entry = groups[key]["entries"].setdefault(
             (desc.upper(), store, date),
@@ -345,19 +326,50 @@ def list_prices(q: str | None = None):
     return result
 
 
+# ── Correções ────────────────────────────────────────────────────────────────
+
 @app.get("/api/corrections")
-def list_corrections(store: str | None = None):
+def list_corrections(store: str | None = None, ws: str = Query("main"),
+                     x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
     if not store:
         return []
-    db = get_db()
     return db.get_corrections(store)
 
 
 @app.post("/api/corrections", status_code=201)
-def save_corrections(corrections: list[CorrectionIn]):
-    if not corrections:
-        return {"ok": True}
-    db = get_db()
+def save_corrections(corrections: list[CorrectionIn], ws: str = Query("main"),
+                     x_auth: str | None = Header(None)):
+    _require(_ws(ws), x_auth)
     for c in corrections:
         db.save_correction(c.store, c.raw_text, c.corrected_name)
     return {"ok": True}
+
+
+# ── Auditoria e Dash (agendados via Coolify Scheduled Task) ─────────────────
+
+def _check_key(key: str | None):
+    secret = os.environ.get("AUDIT_SECRET", "")
+    if not secret or not key or not hmac.compare_digest(key, secret):
+        raise HTTPException(status_code=403, detail="Proibido.")
+
+
+@app.post("/api/audit/weekly")
+def audit_weekly(key: str | None = None):
+    _check_key(key)
+    return auditor.weekly_digest()
+
+
+@app.post("/api/dash/refresh")
+def dash_refresh(key: str | None = None):
+    _check_key(key)
+    return dash.refresh()
+
+
+@app.get("/api/dash")
+def dash_get(x_auth: str | None = Header(None)):
+    _require("dash", x_auth)
+    payload = dash.get()
+    if not payload:
+        raise HTTPException(status_code=404, detail="Dashboard ainda não computado.")
+    return payload
