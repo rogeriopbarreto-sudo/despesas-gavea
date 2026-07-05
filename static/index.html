@@ -11,7 +11,7 @@
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
 <style>
 :root {
   --sand: #f6f1e7;
@@ -433,76 +433,82 @@ input:checked + .t-slider:before { transform: translateX(20px); }
 .pin-err { font-size: 13px; color: var(--rosa); margin-top: 14px; min-height: 18px; font-weight: 700; }
 .pin-note { position: absolute; bottom: calc(24px + var(--safe-bottom)); font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--muted); letter-spacing: .2em; text-transform: uppercase; }
 
-/* ── Dash ── */
-.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-.dash-tile { background: #fff; border: 2px solid var(--stone); border-radius: 20px; padding: 13px 14px; box-shadow: 0 4px 0 var(--stone); }
-.dash-grid .dash-tile:nth-child(2) { background: var(--verde-soft); }
-.dash-grid .dash-tile:nth-child(3) { background: var(--laranja-soft); }
-.dash-grid .dash-tile:nth-child(4) { background: var(--azul); color: #fff; }
-.dash-tile .dt-lbl { font-size: 9px; letter-spacing: .18em; text-transform: uppercase; font-weight: 700; opacity: .7; }
-.dash-tile .dt-val { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: clamp(18px, 5.6vw, 24px); letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.dash-tile .dt-sub { font-size: 9.5px; font-weight: 700; opacity: .7; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.chart-card { background: #fff; border: 2px solid var(--stone); border-radius: 20px; padding: 14px; box-shadow: 0 4px 0 var(--stone); }
-.dash-sec { margin-top: 4px; }
-.dash-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1.5px dashed var(--edge); font-size: 13px; }
-.dash-row .dr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
-.dash-row .dr-sub { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--muted); font-weight: 400; white-space: nowrap; }
-.dash-row .dr-map { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-.dash-row .dr-pin { font-size: 11px; opacity: .55; transition: opacity .15s, transform .15s; }
-.dash-row .dr-map:hover .dr-pin, .dash-row .dr-map:active .dr-pin { opacity: 1; transform: scale(1.15); }
-.dash-row .dr-val { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dash-row .dr-delta { font-size: 10px; font-weight: 700; min-width: 56px; text-align: center; border-radius: 100px; padding: 3px 6px; font-variant-numeric: tabular-nums; }
-.dash-row .dr-delta.up { background: var(--laranja-soft); color: var(--laranja); }
-.dash-row .dr-delta.down { background: var(--verde-soft); color: var(--verde); }
-.dash-bar-wrap { flex: 0 0 76px; height: 9px; background: var(--sand); border: 1.5px solid var(--stone); border-radius: 100px; overflow: hidden; }
-.dash-bar { height: 100%; background: var(--azul); border-radius: 100px; }
-.dash-chart { width: 100%; overflow: visible; }
-.dash-chart .bar-c { fill: #3559c7; }
-.dash-chart .bar-o { fill: #ff6b35; }
-.dash-chart .chart-base { stroke: var(--edge); stroke-width: 1.5; }
-.dash-chart .bar-x { font-family: 'IBM Plex Mono', monospace; font-size: 8px; fill: var(--muted); }
-.dash-chart .bar-top { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 11px; fill: var(--stone); }
-.dash-updated { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--muted); letter-spacing: .06em; margin-top: 20px; text-align: center; }
-.dash-legend { display: flex; gap: 16px; justify-content: center; font-size: 10.5px; font-weight: 700; color: var(--muted); margin-top: 10px; }
-.dash-legend .lg { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
-.dash-legend .lg-c { background: #3559c7; }
-.dash-legend .lg-o { background: #ff6b35; }
+/* ── Dash · Gávea Research ── */
+:root {
+  --r-navy: #0a2540; --r-blue: #1f5c99; --r-orange: #d95f02; --r-teal: #0e7c86;
+  --r-up: #c0392b; --r-down: #1e8449; --r-mut: #64748b;
+  --r-hair: #dde3ea; --r-wash: #f2f5f8; --r-gold: #b98a2e;
+}
+#screen-dash { background: #eef1f5; }
+.rmast { flex-shrink: 0; padding: calc(16px + var(--safe-top)) 18px 14px; background: var(--r-navy); color: #eaf0f6; }
+.rm-row { display: flex; justify-content: space-between; align-items: baseline; }
+.rm-brand { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 19px; }
+.rm-brand span { color: var(--r-gold); }
+.rm-date { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: #93a7bb; }
+.rm-sub { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: #93a7bb; margin-top: 3px; }
+.rm-rating { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+.rm-tag { flex-shrink: 0; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .1em; padding: 5px 10px; border-radius: 4px; }
+.rm-tag.ok { background: var(--r-down); } .rm-tag.at { background: #b9770e; } .rm-tag.al { background: var(--r-up); }
+.rm-txt { font-size: 11px; line-height: 1.45; color: #cfdae5; }
+.rfilters { flex-shrink: 0; display: flex; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--r-hair); background: #fff; }
+.rseg { display: flex; background: var(--r-wash); border-radius: 8px; padding: 3px; flex: 1; }
+.rseg span { flex: 1; text-align: center; font-size: 10.5px; font-weight: 700; color: var(--r-mut); padding: 6px 0; border-radius: 6px; cursor: pointer; }
+.rseg span.on { background: #fff; color: var(--r-navy); box-shadow: 0 1px 3px rgba(10,37,64,.18); }
 
-/* categoria expansível */
-.cat-block { border-bottom: 1.5px dashed var(--edge); }
-.cat-head { border-bottom: 0 !important; }
-.cat-head.tap { cursor: pointer; }
-.cat-arrow { font-size: 15px; color: var(--edge); transition: transform .25s; line-height: 1; margin-left: 2px; flex-shrink: 0; }
-.cat-arrow.open { transform: rotate(90deg); color: var(--muted); }
-.cat-items { display: none; padding: 2px 0 12px 4px; }
-.cat-items.open { display: block; }
-.cat-item { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 12.5px; border-top: 1px dashed var(--edge); }
-.cat-item:first-child { border-top: 0; }
-.ci-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ci-n { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--muted); flex-shrink: 0; }
-.ci-val { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; white-space: nowrap; flex-shrink: 0; }
+.rkpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+.rkpi { background: #fff; border: 1px solid var(--r-hair); border-radius: 10px; padding: 9px 8px 9px 10px; }
+.rkpi .l { font-size: 8px; letter-spacing: .13em; text-transform: uppercase; color: var(--r-mut); font-weight: 700; }
+.rkpi .v { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 16px; margin-top: 3px; color: var(--stone); letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rkpi .d { font-size: 9px; font-weight: 700; margin-top: 2px; }
+.rkpi .d.u { color: var(--r-up); } .rkpi .d.dn { color: var(--r-down); } .rkpi .d.n { color: var(--r-mut); font-weight: 400; }
 
-/* forma de pagamento */
-.pay-bar { display: flex; height: 22px; border-radius: 100px; overflow: hidden; border: 2px solid var(--stone); }
-.pay-seg { height: 100%; }
-.pay-seg + .pay-seg { border-left: 1.5px solid var(--sand); }
-.pay-list { margin-top: 12px; }
-.pay-row { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: 13px; border-top: 1px dashed var(--edge); }
-.pay-row:first-child { border-top: 0; }
-.pay-dot { width: 12px; height: 12px; border-radius: 4px; flex-shrink: 0; }
-.pay-name { flex: 1; font-weight: 700; }
-.pay-pct { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); }
-.pay-val { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; white-space: nowrap; min-width: 74px; text-align: right; }
+.rcard { background: #fff; border: 1px solid var(--r-hair); border-radius: 12px; overflow: hidden; margin-top: 14px; }
+.rch { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px 0; }
+.rch .t { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 15px; color: var(--r-navy); }
+.rch .m { font-family: 'IBM Plex Mono', monospace; font-size: 8.5px; color: var(--r-mut); }
+.rchart { padding: 8px 14px 4px; }
+.rchart svg { width: 100%; display: block; }
+.rlegend { display: flex; gap: 16px; padding: 0 14px 12px; font-size: 10px; color: var(--r-mut); font-weight: 700; }
+.rlegend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.rnote { padding: 11px 14px 13px; font-size: 12px; line-height: 1.62; color: #2c3a4d; border-top: 1px solid var(--r-hair); }
+.rnote .lead { font-family: 'Source Serif 4', serif; font-weight: 600; color: var(--r-navy); }
+.rnote .hu { color: var(--r-up); font-weight: 700; } .rnote .hd { color: var(--r-down); font-weight: 700; }
 
-/* card de auditoria */
-.audit-card { background: #fff; border: 2px solid var(--stone); border-radius: 18px; padding: 12px 14px; margin-top: 14px; box-shadow: 0 4px 0 var(--stone); }
-.audit-card.ok { border-color: var(--verde); box-shadow: 0 4px 0 var(--verde); }
-.audit-card.at { border-color: #d99a1a; box-shadow: 0 4px 0 #d99a1a; }
-.audit-card.al { border-color: var(--rosa); box-shadow: 0 4px 0 var(--rosa); }
-.audit-head { display: flex; align-items: center; gap: 8px; }
-.audit-label { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 13px; }
-.audit-when { margin-left: auto; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--muted); }
-.audit-text { font-size: 12.5px; color: var(--stone); margin-top: 6px; line-height: 1.5; }
+.rtbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rtbl th { font-size: 8.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--r-mut); font-weight: 700; text-align: right; padding: 10px 14px 6px; border-bottom: 2px solid var(--r-navy); }
+.rtbl th:first-child { text-align: left; }
+.rtbl td { padding: 9px 14px; border-bottom: 1px solid #edf1f5; text-align: right; font-variant-numeric: tabular-nums; color: var(--stone); }
+.rtbl td:first-child { text-align: left; font-weight: 500; }
+.rtbl tr:last-child td { border-bottom: 0; }
+.rtbl .rv { font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.rchip { display: inline-block; font-size: 9px; font-weight: 700; border-radius: 100px; padding: 2px 8px; white-space: nowrap; }
+.rchip.u { background: #fdeceb; color: var(--r-up); }
+.rchip.d { background: #e8f5ec; color: var(--r-down); }
+.rchip.n { background: var(--r-wash); color: var(--r-mut); }
+.rmap { color: inherit; text-decoration: none; }
+.rmap .pin { font-size: 10px; opacity: .5; }
+.rmap:active .pin, .rmap:hover .pin { opacity: 1; }
+.rsub { display: block; font-size: 9.5px; color: var(--r-mut); font-weight: 400; margin-top: 1px; }
+
+/* categoria expansível (research) */
+.rcat-head { cursor: pointer; }
+.rcat-arrow { display: inline-block; font-size: 13px; color: var(--r-hair); transition: transform .25s; margin-left: 6px; }
+.rcat-arrow.open { transform: rotate(90deg); color: var(--r-mut); }
+.rcat-items { display: none; }
+.rcat-items.open { display: table-row-group; }
+.rcat-items td { background: #f8fafc; font-size: 11px; padding: 6px 14px 6px 24px; color: #2c3a4d; }
+.rbar { display: inline-block; height: 6px; border-radius: 3px; background: var(--r-blue); vertical-align: 1px; }
+
+/* donut pagamentos */
+.rpay { display: flex; align-items: center; gap: 16px; padding: 10px 14px 14px; }
+.rpaylist { flex: 1; }
+.rpayrow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; padding: 4px 0; color: var(--stone); }
+.rpayrow i { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.rpayrow .n { flex: 1; font-weight: 500; }
+.rpayrow .v { font-family: 'Source Serif 4', serif; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rpayrow .p { font-family: 'IBM Plex Mono', monospace; font-size: 9.5px; color: var(--r-mut); width: 34px; text-align: right; }
+
+.rfoot { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--r-mut); letter-spacing: .06em; margin: 18px 0 6px; text-align: center; }
 
 </style>
 </head>
@@ -562,12 +568,22 @@ input:checked + .t-slider:before { transform: translateX(20px); }
   </div>
 </div>
 
-<!-- ════ DASH ════ -->
+<!-- ════ DASH · GÁVEA RESEARCH ════ -->
 <div class="screen" id="screen-dash">
-  <div class="topbar-slim">
-    <div class="tb-inner">
-      <div class="kicker">Painel do dono · casa + obra</div>
-      <h1>O <span style="color:var(--laranja)">Dash</span></h1>
+  <div class="rmast">
+    <div class="rm-row"><span class="rm-brand">GÁVEA<span>·</span>RESEARCH</span><span class="rm-date" id="rm-date"></span></div>
+    <div class="rm-sub">Household coverage · Casa & Obra</div>
+    <div class="rm-rating" id="rm-rating" style="display:none">
+      <span class="rm-tag" id="rm-tag"></span>
+      <span class="rm-txt" id="rm-txt"></span>
+    </div>
+  </div>
+  <div class="rfilters">
+    <div class="rseg" id="rseg-range">
+      <span data-r="1m">1M</span><span data-r="3m" class="on">3M</span><span data-r="ytd">YTD</span>
+    </div>
+    <div class="rseg" id="rseg-scope" style="flex:0 0 148px">
+      <span data-s="all" class="on">Tudo</span><span data-s="main">Casa</span><span data-s="obra">Obra</span>
     </div>
   </div>
   <div class="scroll-area">
@@ -1606,69 +1622,47 @@ function showLB(id) {
 // ── Error ─────────────────────────────────────────────────────────────────
 function setErr(msg) { $("err-box").innerHTML=`<div class="err-box">${esc(msg)}</div>`; }
 
-// ── Dash ──────────────────────────────────────────────────────────────────
+// ── Dash · Gávea Research ─────────────────────────────────────────────────
+let dashData = null, dashScope = "all", dashRange = "3m";
+
 async function openDash() {
   await ensureAuth("dash");
   updateOwnerToggle(); // dono acabou de autenticar → libera o toggle Casa|Obra
-  const box = $("dash-content");
+  $("rm-date").textContent = new Date().toLocaleDateString("pt-BR",
+    { day: "2-digit", month: "short", year: "numeric" }).toUpperCase().replace(/\./g, "");
+  if (dashData) { renderDash(dashData); return; }
   try {
     const res = await api("/api/dash", { dash: true });
     if (!res.ok) throw new Error();
-    renderDash(await res.json());
+    dashData = await res.json();
+    renderDash(dashData);
   } catch {
-    box.innerHTML = '<div class="empty"><div class="big">📊</div><p>Dashboard ainda não computado.<br>Ele é atualizado toda madrugada, à 1h.</p></div>';
+    $("dash-content").innerHTML = '<div class="empty"><div class="big">📊</div><p>Dashboard ainda não computado.<br>Ele é atualizado toda madrugada, à 1h.</p></div>';
   }
 }
 
+$("rseg-range").addEventListener("click", e => {
+  const r = e.target.dataset.r; if (!r || r === dashRange) return;
+  dashRange = r;
+  document.querySelectorAll("#rseg-range span").forEach(s => s.classList.toggle("on", s.dataset.r === r));
+  if (dashData) renderDash(dashData);
+});
+$("rseg-scope").addEventListener("click", e => {
+  const s = e.target.dataset.s; if (!s || s === dashScope) return;
+  dashScope = s;
+  document.querySelectorAll("#rseg-scope span").forEach(el => el.classList.toggle("on", el.dataset.s === s));
+  if (dashData) renderDash(dashData);
+});
+
 const fmtBRL0 = n => "R$ " + Number(n||0).toLocaleString("pt-BR", {maximumFractionDigits:0});
+const scoped = t => dashScope === "all" ? t.total : (t[dashScope] || 0);
+const pct1 = n => Math.abs(n).toLocaleString("pt-BR", {maximumFractionDigits: 0});
 
-function dashTile(lbl, t) {
-  const split = (t.obra > 0)
-    ? `<div class="dt-sub">🏠 ${fmtBRL0(t.main)} · 🏗️ ${fmtBRL0(t.obra)}</div>` : "";
-  return `<div class="dash-tile"><div class="dt-lbl">${lbl}</div>
-    <div class="dt-val">${fmtBRL0(t.total)}</div>${split}</div>`;
-}
-
-function dashDelta(cur, prev) {
-  if (!prev) return `<span class="dr-delta"></span>`;
-  const pct = (cur - prev) / prev * 100;
-  if (Math.abs(pct) < 0.5) return `<span class="dr-delta">=</span>`;
-  const s = Math.abs(pct).toLocaleString("pt-BR", {maximumFractionDigits: 0});
-  return pct > 0 ? `<span class="dr-delta up">▲ ${s}%</span>` : `<span class="dr-delta down">▼ ${s}%</span>`;
-}
-
-function dashWeeklyChart(series) {
-  const byWeek = {};
-  series.forEach(r => {
-    byWeek[r.week] = byWeek[r.week] || { main: 0, obra: 0 };
-    byWeek[r.week][r.workspace === "obra" ? "obra" : "main"] += r.total;
-  });
-  const weeks = Object.keys(byWeek).sort().slice(-10);
-  if (weeks.length < 2) return "";
-  const totals = weeks.map(w => byWeek[w].main + byWeek[w].obra);
-  const max = Math.max(...totals) || 1, peak = Math.max(...totals);
-  const hasObra = weeks.some(w => byWeek[w].obra > 0);
-
-  const W = 340, H = 160, padTop = 22, padBottom = 28, padX = 8;
-  const plotH = H - padTop - padBottom, baseY = padTop + plotH;
-  const slot = (W - padX * 2) / weeks.length, bw = Math.min(30, slot * 0.54);
-
-  const bars = weeks.map((w, i) => {
-    const d = byWeek[w], total = d.main + d.obra;
-    const cx = padX + slot * i + slot / 2, x = cx - bw / 2;
-    const hTot = total / max * plotH, hObra = d.obra / max * plotH, hMain = hTot - hObra;
-    let s = "";
-    if (hMain > 0.3) s += `<rect class="bar-c" x="${x.toFixed(1)}" y="${(baseY - hMain).toFixed(1)}" width="${bw.toFixed(1)}" height="${hMain.toFixed(1)}" rx="4"/>`;
-    if (hObra > 0.3) s += `<rect class="bar-o" x="${x.toFixed(1)}" y="${(baseY - hTot).toFixed(1)}" width="${bw.toFixed(1)}" height="${hObra.toFixed(1)}" rx="4"/>`;
-    if (total === peak && total > 0) s += `<text class="bar-top" x="${cx.toFixed(1)}" y="${(baseY - hTot - 7).toFixed(1)}" text-anchor="middle">${fmtBRL0(total)}</text>`;
-    const lbl = (weeks.length <= 7 || i % 2 === weeks.length % 2) ? `<text class="bar-x" x="${cx.toFixed(1)}" y="${(baseY + 16).toFixed(1)}" text-anchor="middle">${shortDate(w)}</text>` : "";
-    return s + lbl;
-  }).join("");
-
-  const legend = hasObra ? `<div class="dash-legend">
-    <span><i class="lg lg-c"></i>Casa</span><span><i class="lg lg-o"></i>Obra</span></div>` : "";
-  return `<svg class="dash-chart" viewBox="0 0 ${W} ${H}">
-    <line class="chart-base" x1="${padX}" y1="${baseY}" x2="${W - padX}" y2="${baseY}"/>${bars}</svg>${legend}`;
+function rChip(cur, prev) {
+  if (!prev) return `<span class="rchip n">novo</span>`;
+  const p = (cur - prev) / prev * 100;
+  if (Math.abs(p) < 0.5) return `<span class="rchip n">=</span>`;
+  return p > 0 ? `<span class="rchip u">▲ ${pct1(p)}%</span>` : `<span class="rchip d">▼ ${pct1(p)}%</span>`;
 }
 
 function toggleCat(i) {
@@ -1678,91 +1672,197 @@ function toggleCat(i) {
   if (arr) arr.classList.toggle("open", open);
 }
 
-const PAY_COLOR = {
-  "Cartão de Crédito": "#ff6b35",
-  "Pix": "#0c9c6e",
-  "Vale Alimentação": "#7d7668",
-  "Não informado": "#c9c0ab",
-};
-function dashPaymentChart(list) {
-  if (!list || !list.length) return "";
-  const total = list.reduce((s, p) => s + p.ytd_total, 0) || 1;
-  const seg = list.map(p =>
-    `<div class="pay-seg" style="width:${(p.ytd_total / total * 100).toFixed(2)}%;background:${PAY_COLOR[p.method] || "#c9c0ab"}"></div>`).join("");
-  const rows = list.map(p => `
-    <div class="pay-row">
-      <span class="pay-dot" style="background:${PAY_COLOR[p.method] || "#c9c0ab"}"></span>
-      <span class="pay-name">${esc(p.method)}</span>
-      <span class="pay-pct">${(p.ytd_total / total * 100).toFixed(0)}%</span>
-      <span class="pay-val">${fmtBRL0(p.ytd_total)}</span>
-    </div>`).join("");
-  return `<div class="chart-card"><div class="pay-bar">${seg}</div><div class="pay-list">${rows}</div></div>`;
+// série p/ o gráfico conforme range+escopo: semanas (1M/3M) ou meses (YTD)
+function dashSeries(d) {
+  const src = dashRange === "ytd" ? (d.monthly_series || []) : (d.weekly_series || []);
+  const keyf = dashRange === "ytd" ? (r => r.month) : (r => r.week);
+  const agg = {};
+  src.forEach(r => {
+    const k = keyf(r);
+    agg[k] = agg[k] || { main: 0, obra: 0 };
+    agg[k][r.workspace === "obra" ? "obra" : "main"] += r.total;
+  });
+  let keys = Object.keys(agg).sort();
+  if (dashRange === "1m") keys = keys.slice(-5);
+  if (dashRange === "3m") keys = keys.slice(-14);
+  const lbl = k => dashRange === "ytd"
+    ? ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"][+k.slice(5,7)-1]
+    : shortDate(k);
+  return keys.map(k => ({ label: lbl(k), main: agg[k].main, obra: agg[k].obra }));
 }
 
-function dashAuditCard(a) {
-  if (!a || !a.text) return "";
-  const MAP = { ok: ["🟢", "Sem anomalias", "ok"], atencao: ["🟡", "Atenção", "at"], alerta: ["🔴", "Investigar", "al"] };
-  const [icon, label, cls] = MAP[a.status] || MAP.ok;
-  const when = a.generated_at
-    ? new Date(a.generated_at).toLocaleString("pt-BR", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
-  return `<div class="audit-card ${cls}">
-    <div class="audit-head"><span>${icon}</span><span class="audit-label">Auditoria · ${label}</span>${when ? `<span class="audit-when">${when}</span>` : ""}</div>
-    <div class="audit-text">${esc(a.text)}</div>
-  </div>`;
+function dashAreaChart(pts) {
+  if (pts.length < 2) return "";
+  const showMain = dashScope !== "obra", showObra = dashScope !== "main";
+  const vals = [];
+  pts.forEach(p => { if (showMain) vals.push(p.main); if (showObra) vals.push(p.obra); });
+  const max = Math.max(...vals, 1);
+  const W = 350, H = 130, L = 36, R = 16, T = 12, B = 26;
+  const x = i => L + i / (pts.length - 1) * (W - L - R);
+  const y = v => T + (1 - v / max) * (H - T - B);
+  const line = get => pts.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(get(p)).toFixed(1)}`).join(" ");
+  const fmtK = v => v >= 1000 ? (v/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "k" : Math.round(v);
+
+  let s = `<defs><linearGradient id="rga" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#1f5c99" stop-opacity=".26"/><stop offset="1" stop-color="#1f5c99" stop-opacity="0"/>
+  </linearGradient></defs>`;
+  [0, .5, 1].forEach(f => {
+    const gy = y(max * (1 - f));
+    s += `<line x1="${L}" y1="${gy.toFixed(1)}" x2="${W-R}" y2="${gy.toFixed(1)}" stroke="${f===1?'#dde3ea':'#edf1f5'}"/>`
+       + `<text x="${L-6}" y="${(gy+3).toFixed(1)}" text-anchor="end" font-size="7.5" fill="#64748b">${fmtK(max*(1-f))}</text>`;
+  });
+  if (showMain) {
+    s += `<path d="${line(p => p.main)} L${x(pts.length-1).toFixed(1)},${y(0)} L${x(0)},${y(0)} Z" fill="url(#rga)"/>`
+       + `<path d="${line(p => p.main)}" fill="none" stroke="#1f5c99" stroke-width="2" stroke-linejoin="round"/>`;
+    // pico com rótulo
+    let pi = 0; pts.forEach((p, i) => { if (p.main > pts[pi].main) pi = i; });
+    if (pts[pi].main > 0) s += `<circle cx="${x(pi).toFixed(1)}" cy="${y(pts[pi].main).toFixed(1)}" r="3.4" fill="#1f5c99" stroke="#fff" stroke-width="1.5"/>`
+      + `<text x="${x(pi).toFixed(1)}" y="${(y(pts[pi].main)-7).toFixed(1)}" text-anchor="middle" font-size="8.5" font-weight="700" fill="#0a2540">${fmtBRL0(pts[pi].main)}</text>`;
+    s += `<circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(pts.at(-1).main).toFixed(1)}" r="3.4" fill="#1f5c99" stroke="#fff" stroke-width="1.5"/>`;
+  }
+  if (showObra && pts.some(p => p.obra > 0)) {
+    s += `<path d="${line(p => p.obra)}" fill="none" stroke="#d95f02" stroke-width="2" stroke-linejoin="round"/>`
+       + `<circle cx="${x(pts.length-1).toFixed(1)}" cy="${y(pts.at(-1).obra).toFixed(1)}" r="3.4" fill="#d95f02" stroke="#fff" stroke-width="1.5"/>`;
+  }
+  const step = Math.ceil(pts.length / 5);
+  pts.forEach((p, i) => {
+    if (i % step === 0 || i === pts.length - 1)
+      s += `<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="7.5" fill="#64748b">${p.label}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
+}
+
+// comentário do analista — gerado das próprias séries
+function analystNote(d) {
+  const bits = [];
+  const ms = {};
+  (d.monthly_series || []).forEach(r => { ms[r.month] = (ms[r.month] || 0) + r.total; });
+  const mk = Object.keys(ms).sort();
+  if (mk.length >= 2) {
+    const cur = ms[mk.at(-1)], prev = ms[mk.at(-2)];
+    if (prev > 0) {
+      // mês corrente é parcial — comparar % consumido, não variação direta
+      const p = cur / prev * 100;
+      bits.push(p >= 100
+        ? `o mês parcial <span class="hu">já supera</span> o total do anterior (<b>${pct1(p)}%</b>)`
+        : `o mês parcial soma <b>${pct1(p)}%</b> do total do mês anterior`);
+    }
+  }
+  const st = d.by_store || [];
+  if (st.length) {
+    const monthTot = st.reduce((s, x) => s + x.month_total, 0);
+    if (monthTot > 0) bits.push(`${esc(st[0].store)} concentra <b>${pct1(st[0].month_total / monthTot * 100)}%</b> do gasto do mês`);
+    const novo = st.find(x => !x.prev_month_total && x.month_total > 0);
+    if (novo) bits.push(`estreia de <b>${esc(novo.store)}</b> no P&L`);
+  }
+  if (d.ytd && d.ytd.obra > 0) bits.push(`a obra representa <b>${pct1(d.ytd.obra / (d.ytd.total || 1) * 100)}%</b> do ano`);
+  if (!bits.length) return "";
+  return `<div class="rnote"><span class="lead">Comentário do analista.</span> ${bits.join("; ")}.</div>`;
+}
+
+const PAY_COLOR = { "Cartão de Crédito": "#1f5c99", "Vale Alimentação": "#d95f02", "Pix": "#0e7c86", "Não informado": "#94a3b8" };
+
+function dashDonut(list) {
+  const total = list.reduce((s, p) => s + p.ytd_total, 0) || 1;
+  const C = 2 * Math.PI * 34;
+  let off = 0, segs = "";
+  list.forEach(p => {
+    const frac = p.ytd_total / total, len = Math.max(0, frac * C - 2);
+    segs += `<circle cx="46" cy="46" r="34" fill="none" stroke="${PAY_COLOR[p.method] || "#94a3b8"}" stroke-width="14"
+      stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 46 46)"/>`;
+    off += frac * C;
+  });
+  const rows = list.map(p => `
+    <div class="rpayrow"><i style="background:${PAY_COLOR[p.method] || "#94a3b8"}"></i>
+      <span class="n">${esc(p.method)}</span>
+      <span class="p">${(p.ytd_total / total * 100).toFixed(0)}%</span>
+      <span class="v">${fmtBRL0(p.ytd_total)}</span></div>`).join("");
+  const tot = total >= 1000 ? (total/1000).toLocaleString("pt-BR",{maximumFractionDigits:1}) + "k" : Math.round(total);
+  return `<div class="rpay">
+    <svg width="92" height="92" viewBox="0 0 92 92">
+      <circle cx="46" cy="46" r="34" fill="none" stroke="#f2f5f8" stroke-width="14"/>${segs}
+      <text x="46" y="43" text-anchor="middle" font-size="9" fill="#64748b">total</text>
+      <text x="46" y="56" text-anchor="middle" font-size="11" font-weight="700" fill="#0a2540">${tot}</text>
+    </svg>
+    <div class="rpaylist">${rows}</div></div>`;
 }
 
 function renderDash(d) {
+  // selo de auditoria no masthead
+  const a = d.audit;
+  if (a && a.text) {
+    const MAP = { ok: ["DENTRO DO PADRÃO", "ok"], atencao: ["ATENÇÃO", "at"], alerta: ["INVESTIGAR", "al"] };
+    const [label, cls] = MAP[a.status] || MAP.ok;
+    $("rm-tag").textContent = label; $("rm-tag").className = "rm-tag " + cls;
+    $("rm-txt").innerHTML = `<b>Auditoria:</b> ${esc(a.text)}`;
+    $("rm-rating").style.display = "flex";
+  } else $("rm-rating").style.display = "none";
+
+  const kpi = (l, t, extra) => `<div class="rkpi"><div class="l">${l}</div>
+    <div class="v">${fmtBRL0(scoped(t))}</div><div class="d ${extra ? extra[0] : "n"}">${extra ? extra[1] : ""}</div></div>`;
+  const kpis = `<div class="rkpis">
+    ${kpi("Hoje", d.today, ["n", "—"])}
+    ${kpi("Semana", d.week, ["n", "corrente"])}
+    ${kpi("Mês", d.month, ["n", "até hoje"])}
+    ${kpi("YTD", d.ytd, ["n", dashScope === "all" ? "casa+obra" : (dashScope === "main" ? "só casa" : "só obra")])}
+  </div>`;
+
   const mapsUrl = store => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store + ", Rio de Janeiro")}`;
-  const storeRows = (d.by_store || []).slice(0, 12).map(s => `
-    <div class="dash-row">
-      <div class="dr-name"><a class="dr-map" href="${mapsUrl(s.store)}" target="_blank" rel="noopener">${esc(s.store)}${s.workspace === "obra" ? " 🏗️" : ""} <span class="dr-pin">📍</span></a>
-        <div class="dr-sub">${s.month_n} compra${s.month_n === 1 ? "" : "s"} no mês</div></div>
-      ${dashDelta(s.month_total, s.prev_month_total)}
-      <span class="dr-val">${fmtBRL0(s.month_total)}</span>
-    </div>`).join("");
+  let stores = (d.by_store || []);
+  if (dashScope !== "all") stores = stores.filter(s => s.workspace === dashScope);
+  const storeRows = stores.slice(0, 10).map(s => `
+    <tr><td><a class="rmap" href="${mapsUrl(s.store)}" target="_blank" rel="noopener">${esc(s.store)}${s.workspace === "obra" ? " 🏗️" : ""} <span class="pin">📍</span></a>
+      <span class="rsub">${s.month_n} nota${s.month_n === 1 ? "" : "s"}</span></td>
+      <td>${rChip(s.month_total, s.prev_month_total)}</td>
+      <td class="rv">${fmtBRL0(s.month_total)}</td></tr>`).join("");
 
   const cats = d.by_category || [];
   const maxCat = Math.max(1, ...cats.map(c => c.ytd_total));
   const catRows = cats.slice(0, 12).map((c, i) => {
     const items = c.items || [];
-    const sub = items.map(it => `
-      <div class="cat-item">
-        <span class="ci-name">${esc(it.name)}</span>
-        <span class="ci-n">${it.n}×</span>
-        <span class="ci-val">${fmtBRL0(it.total)}</span>
-      </div>`).join("");
     const tap = items.length > 0;
-    return `<div class="cat-block">
-      <div class="dash-row cat-head${tap ? " tap" : ""}"${tap ? ` onclick="toggleCat(${i})"` : ""}>
-        <div class="dr-name">${esc(c.category)}
-          <div class="dr-sub">mês ${fmtBRL0(c.month_total)}</div></div>
-        <div class="dash-bar-wrap"><div class="dash-bar" style="width:${(c.ytd_total / maxCat * 100).toFixed(0)}%"></div></div>
-        <span class="dr-val">${fmtBRL0(c.ytd_total)}</span>
-        <span class="cat-arrow" id="cat-arr-${i}" style="${tap ? "" : "opacity:0"}">›</span>
-      </div>
-      <div class="cat-items" id="cat-items-${i}">${sub}</div>
-    </div>`;
+    const sub = items.map(it => `
+      <tr><td colspan="2" style="text-align:left">${esc(it.name)} <span class="rsub" style="display:inline">· ${it.n}×</span></td>
+      <td class="rv" style="background:#f8fafc">${fmtBRL0(it.total)}</td></tr>`).join("");
+    return `<tbody>
+      <tr class="${tap ? "rcat-head" : ""}"${tap ? ` onclick="toggleCat(${i})"` : ""}>
+        <td>${esc(c.category)}${tap ? `<span class="rcat-arrow" id="cat-arr-${i}">›</span>` : ""}
+          <span class="rsub">mês ${fmtBRL0(c.month_total)}</span></td>
+        <td><span class="rbar" style="width:${Math.max(4, c.ytd_total / maxCat * 64).toFixed(0)}px"></span></td>
+        <td class="rv">${fmtBRL0(c.ytd_total)}</td></tr></tbody>
+      <tbody class="rcat-items" id="cat-items-${i}">${sub}</tbody>`;
   }).join("");
 
+  const geralNote = dashScope !== "all" ? " · GERAL" : "";
+  const rangeLbl = { "1m": "5 SEMANAS", "3m": "14 SEMANAS", "ytd": "POR MÊS" }[dashRange];
   const upd = d.generated_at ? new Date(d.generated_at) : null;
-  $("dash-content").innerHTML = `
-    <div class="dash-grid">
-      ${dashTile("Hoje", d.today)}${dashTile("Semana", d.week)}
-      ${dashTile("Mês", d.month)}${dashTile("Ano (YTD)", d.ytd)}
-    </div>
-    ${dashAuditCard(d.audit)}
-    <div class="sec-head"><h2>Semana a semana</h2></div>
-    ${(c => c ? `<div class="chart-card">${c}</div>` : '<p class="dash-updated">Poucos dados ainda.</p>')(dashWeeklyChart(d.weekly_series || []))}
-    <div class="sec-head"><h2>Por forma de pagamento</h2><span class="idx">ano</span></div>
-    ${dashPaymentChart(d.by_payment) || '<p class="dash-updated">Sem dados ainda.</p>'}
-    <div class="sec-head"><h2>Por estabelecimento</h2><span class="idx">mês atual</span></div>
-    <div class="dash-sec">${storeRows || '<div class="empty"><p>Sem compras no mês.</p></div>'}</div>
-    <div class="sec-head"><h2>Por categoria</h2><span class="idx">ano · toque p/ ver itens</span></div>
-    <div class="dash-sec">${catRows || '<div class="empty"><p>Sem categorias ainda.</p></div>'}</div>
-    <div class="dash-updated">Atualizado ${upd ? upd.toLocaleString("pt-BR", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—"} · refresh diário à 1h</div>`;
+  const chart = dashAreaChart(dashSeries(d));
 
-  if (G) G.from("#dash-content .dash-tile, #dash-content .dash-row",
-                { opacity: 0, y: 12, duration: .4, stagger: .03, ease: "power2.out", clearProps: "all" });
+  $("dash-content").innerHTML = `
+    ${kpis}
+    <div class="rcard">
+      <div class="rch"><span class="t">Evolução do gasto</span><span class="m">R$ · ${rangeLbl}</span></div>
+      <div class="rchart">${chart || '<p class="rfoot">Poucos dados no período.</p>'}</div>
+      <div class="rlegend">${dashScope !== "obra" ? '<span><i style="background:#1f5c99"></i>Casa</span>' : ""}${dashScope !== "main" ? '<span><i style="background:#d95f02"></i>Obra</span>' : ""}</div>
+      ${analystNote(d)}
+    </div>
+    <div class="rcard">
+      <div class="rch"><span class="t">Estabelecimentos</span><span class="m">MÊS · Δ MoM</span></div>
+      <table class="rtbl"><thead><tr><th>Loja</th><th>Δ</th><th>R$</th></tr></thead>
+      <tbody>${storeRows || '<tr><td colspan="3" style="text-align:center;color:var(--r-mut)">Sem compras no período.</td></tr>'}</tbody></table>
+    </div>
+    <div class="rcard">
+      <div class="rch"><span class="t">Formas de pagamento</span><span class="m">YTD${geralNote}</span></div>
+      ${(d.by_payment && d.by_payment.length) ? dashDonut(d.by_payment) : '<p class="rfoot">Sem dados.</p>'}
+    </div>
+    <div class="rcard">
+      <div class="rch"><span class="t">Categorias</span><span class="m">ANO · TOQUE P/ ITENS${geralNote}</span></div>
+      <table class="rtbl"><thead><tr><th>Categoria</th><th></th><th>R$</th></tr></thead>${catRows}</table>
+    </div>
+    <div class="rfoot">GÁVEA·RESEARCH v3.1 · atualizado ${upd ? upd.toLocaleString("pt-BR", {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "—"} · refresh diário à 1h</div>`;
+
+  if (G) G.from("#dash-content .rkpi, #dash-content .rcard",
+                { opacity: 0, y: 12, duration: .4, stagger: .04, ease: "power2.out", clearProps: "all" });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ from notify import get_anthropic, send_expense_notification
 
 load_dotenv()
 
-APP_VERSION = "3.0"
+APP_VERSION = "3.1"
 
 
 @asynccontextmanager
